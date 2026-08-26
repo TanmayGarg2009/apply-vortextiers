@@ -1,0 +1,47 @@
+import { NextRequest, NextResponse } from "next/server";
+import { handleDiscordCallback } from "@/lib/auth/discord";
+import { setSessionCookie } from "@/lib/auth/session";
+import { logAudit } from "@/lib/audit/audit-logger";
+
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
+  const errorDescription = url.searchParams.get("error_description");
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://apply.vortextiers.xyz";
+
+  if (error) {
+    console.error("Discord OAuth returned error:", error, errorDescription);
+    return NextResponse.redirect(`${baseUrl}/?auth_error=${encodeURIComponent(errorDescription || error)}`);
+  }
+
+  if (!code || !state) {
+    return NextResponse.redirect(`${baseUrl}/?auth_error=Missing+OAuth+code+or+state`);
+  }
+
+  try {
+    const user = await handleDiscordCallback(code, state);
+    await setSessionCookie(user);
+
+    await logAudit({
+      actorId: user.id,
+      action: "USER_LOGIN_DISCORD",
+      targetType: "User",
+      targetId: user.id,
+      metadata: {
+        discordId: user.discordId,
+        username: user.discordUsername,
+        role: user.role,
+      },
+    });
+
+    return NextResponse.redirect(`${baseUrl}/dashboard`);
+  } catch (err: any) {
+    console.error("OAuth callback processing error:", err);
+    return NextResponse.redirect(
+      `${baseUrl}/?auth_error=${encodeURIComponent(err.message || "Authentication failed")}`
+    );
+  }
+}

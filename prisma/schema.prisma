@@ -1,0 +1,299 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  APPLICANT
+  REVIEWER
+  ADMIN
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  NEEDS_CHANGES
+}
+
+enum QuestionType {
+  SHORT_TEXT
+  PARAGRAPH
+  MULTIPLE_CHOICE
+  MULTIPLE_SELECT
+  NUMBER
+  URL
+  FILE
+  IMAGE
+  VIDEO
+  MINECRAFT_USERNAME
+  DISCORD_USERNAME
+}
+
+enum UploadCategory {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  OTHER
+}
+
+enum EmailType {
+  APPLICATION_SUBMITTED
+  APPLICATION_ACCEPTED
+  APPLICATION_REJECTED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id                String          @id @default(cuid())
+  discordId         String          @unique
+  discordUsername   String
+  discordGlobalName String?
+  discordAvatar     String?
+  email             String
+  role              Role            @default(APPLICANT)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  lastLoginAt       DateTime        @default(now())
+
+  applications      Application[]   @relation("ApplicantApplications")
+  reviewedApps      Application[]   @relation("ReviewerApplications")
+  adminNotes        AdminNote[]
+  statusChanges     StatusHistory[]
+  auditLogs         AuditLog[]
+
+  @@index([discordId])
+  @@index([role])
+  @@index([email])
+}
+
+model StaffPosition {
+  id               String          @id @default(cuid())
+  slug             String          @unique
+  name             String
+  description      String?
+  enabled          Boolean         @default(true)
+  order            Int             @default(0)
+  requiredEvidence Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  applications     Application[]
+  questions        Question[]
+
+  @@index([enabled, order])
+}
+
+model GameMode {
+  id          String          @id @default(cuid())
+  slug        String          @unique
+  name        String
+  description String?
+  icon        String?
+  enabled     Boolean         @default(true)
+  order       Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  applications Application[]
+  questions    Question[]
+
+  @@index([enabled, order])
+}
+
+model Question {
+  id               String          @id @default(cuid())
+  positionId       String?
+  position         StaffPosition?  @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  modeId           String?
+  mode             GameMode?       @relation(fields: [modeId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  type             QuestionType    @default(SHORT_TEXT)
+  required         Boolean         @default(false)
+  order            Int             @default(0)
+  enabled          Boolean         @default(true)
+  minLength        Int?
+  maxLength        Int?
+  minSelections    Int?
+  maxSelections    Int?
+  minNumber        Float?
+  maxNumber        Float?
+  options          Json?           // Array of string options or objects
+  allowedFileTypes Json?           // Array of MIME types / extensions
+  maxFiles         Int?            @default(1)
+  maxFileSizeMb    Int?            @default(25)
+  version          Int             @default(1)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  answers          Answer[]
+  uploads          Upload[]
+
+  @@index([positionId, modeId, enabled, order])
+}
+
+model Application {
+  id                  String            @id // Public ID format: VT-000124
+  userId              String
+  user                User              @relation("ApplicantApplications", fields: [userId], references: [id], onDelete: Cascade)
+  discordId           String
+  email               String
+  minecraftUsername   String?
+  positionId          String
+  position            StaffPosition     @relation(fields: [positionId], references: [id])
+  modeId              String?
+  mode                GameMode?         @relation(fields: [modeId], references: [id])
+  status              ApplicationStatus @default(DRAFT)
+  version             Int               @default(1)
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  reviewedById        String?
+  reviewedBy          User?             @relation("ReviewerApplications", fields: [reviewedById], references: [id])
+  decisionReason      String?           @db.Text // Applicant-visible general reason
+  acceptanceMessage   String?           @db.Text // Applicant-facing optional welcome message
+  rejectionReason     String?           @db.Text // Applicant-facing optional rejection feedback
+  googleDriveFolderId String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  answers             Answer[]
+  uploads             Upload[]
+  adminNotes          AdminNote[]
+  statusHistory       StatusHistory[]
+  emailEvents         EmailEvent[]
+
+  @@index([status])
+  @@index([userId])
+  @@index([discordId])
+  @@index([positionId])
+  @@index([modeId])
+  @@index([submittedAt])
+  @@index([reviewedById])
+  @@index([createdAt])
+}
+
+model Answer {
+  id               String       @id @default(cuid())
+  applicationId    String
+  application      Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         Question     @relation(fields: [questionId], references: [id])
+  questionSnapshot Json?        // Immutable snapshot of question definition at submission time
+  value            String?      @db.Text
+  selectedOptions  Json?        // Array of selected option strings
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([applicationId, questionId])
+  @@index([applicationId])
+  @@index([questionId])
+}
+
+model Upload {
+  id                      String         @id @default(cuid())
+  applicationId           String
+  application             Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  questionId              String?
+  question                Question?      @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  filename                String
+  safeFilename            String
+  mimeType                String
+  sizeBytes               Int
+  googleDriveFileId       String
+  googleDriveViewLink     String?
+  googleDriveDownloadLink String?
+  category                UploadCategory @default(IMAGE)
+  createdAt               DateTime       @default(now())
+
+  @@index([applicationId])
+  @@index([questionId])
+}
+
+model AdminNote {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content       String      @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([applicationId])
+  @@index([authorId])
+}
+
+model StatusHistory {
+  id            String            @id @default(cuid())
+  applicationId String
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  fromStatus    ApplicationStatus
+  toStatus      ApplicationStatus
+  changedById   String?
+  changedBy     User?             @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  note          String?           @db.Text
+  metadata      Json?
+  createdAt     DateTime          @default(now())
+
+  @@index([applicationId, createdAt])
+}
+
+model EmailEvent {
+  id                String      @id @default(cuid())
+  applicationId     String
+  application       Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  recipient         String
+  type              EmailType
+  status            EmailStatus @default(PENDING)
+  provider          String      @default("RESEND")
+  providerMessageId String?
+  attempts          Int         @default(1)
+  sentAt            DateTime?
+  failedAt          DateTime?
+  error             String?     @db.Text
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([applicationId, type, status])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+model AppSetting {
+  key         String   @id
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+}

@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 20% 14%;
+    --foreground: 220 15% 90%;
+    --card: 220 18% 18%;
+    --card-foreground: 220 15% 90%;
+    --popover: 220 18% 18%;
+    --popover-foreground: 220 15% 90%;
+    --primary: 45 100% 55%;
+    --primary-foreground: 220 20% 10%;
+    --secondary: 220 15% 22%;
+    --secondary-foreground: 220 15% 80%;
+    --muted: 220 15% 20%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 220 15% 25%;
+    --accent-foreground: 220 15% 90%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 25%;
+    --input: 220 15% 25%;
+    --ring: 45 100% 55%;
+    --radius: 0.75rem;
+
+    /* Vortex Tiers Ecosystem Badges */
+    --tier-ht1: 130 60% 45%;
+    --tier-ht2: 160 55% 40%;
+    --tier-ht3: 180 50% 42%;
+    --tier-ht4: 200 55% 45%;
+    --tier-lt1: 45 90% 55%;
+    --tier-lt2: 30 85% 55%;
+    --tier-lt3: 15 80% 55%;
+    --tier-lt4: 0 75% 55%;
+    --tier-lt5: 330 60% 50%;
+
+    /* Metals & Accents */
+    --gold: 51 100% 50%;
+    --silver: 220 10% 70%;
+    --bronze: 25 60% 50%;
+
+    /* Sidebar */
+    --sidebar-background: 220 22% 12%;
+    --sidebar-foreground: 220 15% 85%;
+    --sidebar-primary: 45 100% 55%;
+    --sidebar-primary-foreground: 220 20% 10%;
+    --sidebar-accent: 220 18% 20%;
+    --sidebar-accent-foreground: 220 15% 95%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 45 100% 55%;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    background-color: #0f1319;
+  }
+
+  code, kbd, samp, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Custom UI Utilities */
+.vt-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: var(--radius);
+  transition: all 0.2s ease-in-out;
+}
+
+.vt-card-elevated {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+}
+
+.vt-card:hover {
+  border-color: hsl(var(--border));
+}
+
+.tier-badge {
+  display: inline-flex;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.25rem 0.5rem;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+}
+
+/* Glass & Glow */
+.vt-glow-gold {
+  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.25);
+}
+
+.vt-glow-emerald {
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
+}
+
+/* Subtle Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}

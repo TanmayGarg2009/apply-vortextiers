@@ -1,0 +1,81 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireReviewer } from "@/lib/auth/rbac";
+import dbService from "@/lib/db/store";
+import { UpdateStatusSchema } from "@/lib/validation/application";
+import { sendApplicationEmail } from "@/lib/email/resend";
+import { logAudit } from "@/lib/audit/audit-logger";
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireReviewer();
+    const body = await req.json();
+    const validated = UpdateStatusSchema.parse(body);
+
+    const application = await dbService.getApplicationById(params.id);
+    if (!application) {
+      return NextResponse.json({ error: "Application not found." }, { status: 404 });
+    }
+
+    // Update status and record transition
+    const updated = await dbService.updateApplicationStatus({
+      applicationId: params.id,
+      newStatus: validated.status,
+      reviewerId: user.id,
+      decisionReason: validated.decisionReason,
+      acceptanceMessage: validated.acceptanceMessage,
+      rejectionReason: validated.rejectionReason,
+      note: validated.note,
+    });
+
+    await logAudit({
+      actorId: user.id,
+      action: `APPLICATION_STATUS_${validated.status}`,
+      targetType: "Application",
+      targetId: params.id,
+      metadata: {
+        fromStatus: application.status,
+        toStatus: validated.status,
+        hasAcceptanceMessage: !!validated.acceptanceMessage,
+        hasRejectionReason: !!validated.rejectionReason,
+      },
+    });
+
+    // Trigger transactional email for Accept / Reject decisions
+    if (validated.status === "ACCEPTED") {
+      sendApplicationEmail({
+        applicationId: updated.id,
+        recipientEmail: updated.email,
+        applicantName: updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant",
+        positionName: updated.position?.name || "Staff Position",
+        modeName: updated.mode?.name,
+        type: "APPLICATION_ACCEPTED",
+        acceptanceMessage: validated.acceptanceMessage,
+      }).catch((err) => console.error("Async acceptance email error:", err));
+    } else if (validated.status === "REJECTED") {
+      sendApplicationEmail({
+        applicationId: updated.id,
+        recipientEmail: updated.email,
+        applicantName: updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant",
+        positionName: updated.position?.name || "Staff Position",
+        modeName: updated.mode?.name,
+        type: "APPLICATION_REJECTED",
+        rejectionReason: validated.rejectionReason,
+      }).catch((err) => console.error("Async rejection email error:", err));
+    }
+
+    return NextResponse.json({
+      success: true,
+      application: updated,
+      message: `Application status updated to ${validated.status}.`,
+    });
+  } catch (error: any) {
+    const status = error.name === "ZodError" ? 400 : error.name === "UnauthorizedError" ? 401 : error.name === "ForbiddenError" ? 403 : 500;
+    return NextResponse.json(
+      { error: error.errors ? error.errors[0].message : error.message || "Failed to update application status." },
+      { status }
+    );
+  }
+}
