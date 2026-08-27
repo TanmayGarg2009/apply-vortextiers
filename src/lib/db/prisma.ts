@@ -6,7 +6,7 @@ declare global {
 }
 
 const DEFAULT_POOLER_URL =
-  "postgresql://postgres.nobgnouifnyhcsnowjoo:PfjjG071T9zFJsE9@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+  "postgresql://postgres.nobgnouifnyhcsnowjoo:PfjjG071T9zFJsE9@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1";
 
 export function getCanonicalDatabaseUrl(): string {
   let url = (process.env.DATABASE_URL || "").trim().replace(/^["']|["']$/g, "");
@@ -22,10 +22,17 @@ export function getCanonicalDatabaseUrl(): string {
       .replace("db.nobgnouifnyhcsnowjoo.supabase.co:5432", "aws-0-ap-south-1.pooler.supabase.com:6543")
       .replace("db.nobgnouifnyhcsnowjoo.supabase.co", "aws-0-ap-south-1.pooler.supabase.com:6543")
       .replace("postgresql://postgres:", "postgresql://postgres.nobgnouifnyhcsnowjoo:");
+  }
 
-    if (!url.includes("pgbouncer=true")) {
-      url += url.includes("?") ? "&pgbouncer=true" : "?pgbouncer=true";
-    }
+  // Force pgbouncer and single connection limit for serverless lambdas
+  if (!url.includes("pgbouncer=true")) {
+    url += url.includes("?") ? "&pgbouncer=true" : "?pgbouncer=true";
+  }
+  if (!url.includes("connection_limit=")) {
+    url += "&connection_limit=1";
+  }
+  if (!url.includes("pool_timeout=")) {
+    url += "&pool_timeout=10";
   }
 
   return url;
