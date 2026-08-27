@@ -182,9 +182,6 @@ export default async function HomePage() {
                   }
                   alt={mode.name}
                   className="h-full w-full object-contain"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = "/icons/sword.svg";
-                  }}
                 />
               </div>
               <span className="font-mono text-xs font-bold text-foreground">
