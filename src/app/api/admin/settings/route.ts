@@ -5,10 +5,12 @@ import { logAudit } from "@/lib/audit/audit-logger";
 
 export async function GET() {
   try {
+    await requireReviewer();
     const settings = await dbService.getSettings();
     return NextResponse.json({ settings });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const status = error.name === "UnauthorizedError" ? 401 : error.name === "ForbiddenError" ? 403 : 500;
+    return NextResponse.json({ error: error.message }, { status });
   }
 }
 

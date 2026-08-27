@@ -6,8 +6,13 @@ import { SessionUser, Role } from "@/types";
 const getDiscordClientId = () =>
   (process.env.DISCORD_CLIENT_ID || "1422296301768540240").trim().replace(/^["']|["']$/g, "");
 
-const getDiscordClientSecret = () =>
-  (process.env.DISCORD_CLIENT_SECRET || "e_H7F75Zti_ErbQfMi8WMzFSAiTCxySbM5e").trim().replace(/^["']|["']$/g, "");
+const getDiscordClientSecret = () => {
+  const secret = (process.env.DISCORD_CLIENT_SECRET || "").trim().replace(/^["']|["']$/g, "");
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("Missing DISCORD_CLIENT_SECRET environment variable.");
+  }
+  return secret;
+};
 
 const getDiscordRedirectUri = () =>
   (process.env.DISCORD_REDIRECT_URI || "https://apply.vortextiers.xyz").trim().replace(/^["']|["']$/g, "");
@@ -67,6 +72,7 @@ export async function handleDiscordCallback(
   const cookieStore = cookies();
   const storedState = cookieStore.get(OAUTH_STATE_COOKIE_NAME)?.value;
 
+  // Strict CSRF verification when state cookie was created
   if (storedState && state && storedState !== state) {
     throw new Error("Invalid OAuth CSRF state parameter. Please try logging in again.");
   }

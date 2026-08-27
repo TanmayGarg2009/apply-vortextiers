@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { SessionUser, Role } from "@/types";
 
 const SESSION_COOKIE_NAME = "vortex_staff_session";
-const SESSION_SECRET = process.env.SESSION_SECRET || "vortex_staff_session_default_secret_key_32_chars_min";
+const SESSION_SECRET = process.env.SESSION_SECRET || "f8a42b109e8d47b7c25e8931a57c6312480bfde591283c7493217ba0451e9d12";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionPayload {
@@ -32,7 +32,7 @@ export function createSessionToken(user: SessionUser): string {
 }
 
 /**
- * Verify and decode a session token
+ * Verify and decode a session token using double-hash constant-time comparison
  */
 export function verifySessionToken(token: string): SessionUser | null {
   try {
@@ -42,8 +42,10 @@ export function verifySessionToken(token: string): SessionUser | null {
     const [encodedPayload, signature] = parts;
     const expectedSignature = signPayload(encodedPayload, SESSION_SECRET);
 
-    // Constant-time comparison to prevent timing attacks
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+    // Constant-time comparison using fixed 32-byte sha256 digests to prevent timing attacks & buffer mismatch exceptions
+    const sigHash = crypto.createHash("sha256").update(signature).digest();
+    const expHash = crypto.createHash("sha256").update(expectedSignature).digest();
+    if (!crypto.timingSafeEqual(sigHash, expHash)) {
       return null;
     }
 
@@ -62,9 +64,23 @@ export function verifySessionToken(token: string): SessionUser | null {
 }
 
 /**
- * Set session cookie in Next.js Server Action / Route Handler
+ * Read and verify session cookie from current request
  */
-export async function setSessionCookie(user: SessionUser) {
+export async function getSessionUser(): Promise<SessionUser | null> {
+  try {
+    const cookieStore = cookies();
+    const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
+    if (!sessionCookie?.value) return null;
+    return verifySessionToken(sessionCookie.value);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write session cookie to response headers
+ */
+export async function setSessionCookie(user: SessionUser): Promise<void> {
   const token = createSessionToken(user);
   const cookieStore = cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
@@ -77,19 +93,9 @@ export async function setSessionCookie(user: SessionUser) {
 }
 
 /**
- * Clear session cookie
+ * Invalidate and clear session cookie
  */
-export async function clearSessionCookie() {
+export async function clearSessionCookie(): Promise<void> {
   const cookieStore = cookies();
   cookieStore.delete(SESSION_COOKIE_NAME);
-}
-
-/**
- * Get current authenticated user from cookies
- */
-export async function getSessionUser(): Promise<SessionUser | null> {
-  const cookieStore = cookies();
-  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
-  if (!sessionCookie?.value) return null;
-  return verifySessionToken(sessionCookie.value);
 }

@@ -1,4 +1,5 @@
 import prisma from "./prisma";
+import { Prisma } from "@prisma/client";
 import {
   ApplicationData,
   QuestionData,
@@ -184,6 +185,9 @@ class InMemoryStore {
 
 const memoryStore = new InMemoryStore();
 
+let dbAvailableCache: boolean | null = null;
+let lastDbCheckTime = 0;
+
 /**
  * Determine whether to use PostgreSQL Prisma connection or fallback store
  */
@@ -191,10 +195,18 @@ async function canConnectToDatabase(): Promise<boolean> {
   if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes("postgres.xxx")) {
     return false;
   }
+  const now = Date.now();
+  if (dbAvailableCache !== null && now - lastDbCheckTime < 30000) {
+    return dbAvailableCache;
+  }
   try {
     await prisma.$queryRaw`SELECT 1`;
+    dbAvailableCache = true;
+    lastDbCheckTime = now;
     return true;
   } catch {
+    dbAvailableCache = false;
+    lastDbCheckTime = now;
     return false;
   }
 }
@@ -277,6 +289,15 @@ export const dbService = {
     if (await canConnectToDatabase()) {
       const where: any = {};
       if (filters?.enabledOnly) where.enabled = true;
+      if (filters?.positionId) {
+        where.OR = [{ positionId: null }, { positionId: filters.positionId }];
+      }
+      if (filters?.modeId) {
+        where.AND = [
+          ...(where.AND || []),
+          { OR: [{ modeId: null }, { modeId: filters.modeId }] },
+        ];
+      }
       const questions = await prisma.question.findMany({
         where,
         orderBy: { order: "asc" },
@@ -608,14 +629,14 @@ export const dbService = {
             },
             update: {
               value: ans.value,
-              selectedOptions: ans.selectedOptions ? JSON.stringify(ans.selectedOptions) : undefined,
+              selectedOptions: ans.selectedOptions && ans.selectedOptions.length > 0 ? (ans.selectedOptions as any) : Prisma.DbNull,
               updatedAt: new Date(),
             },
             create: {
               applicationId,
               questionId: ans.questionId,
               value: ans.value,
-              selectedOptions: ans.selectedOptions ? JSON.stringify(ans.selectedOptions) : undefined,
+              selectedOptions: ans.selectedOptions && ans.selectedOptions.length > 0 ? (ans.selectedOptions as any) : Prisma.DbNull,
             },
           });
         }
@@ -651,6 +672,9 @@ export const dbService = {
 
     if (await canConnectToDatabase()) {
       return await prisma.$transaction(async (tx) => {
+        const currentApp = await tx.application.findUnique({ where: { id: applicationId } });
+        const fromStatus = currentApp?.status || "DRAFT";
+
         // Snapshot all answered questions
         const answers = await tx.answer.findMany({ where: { applicationId } });
         for (const ans of answers) {
@@ -682,7 +706,7 @@ export const dbService = {
         await tx.statusHistory.create({
           data: {
             applicationId,
-            fromStatus: "DRAFT",
+            fromStatus,
             toStatus: "SUBMITTED",
             note: "Applicant submitted application for staff review.",
           },

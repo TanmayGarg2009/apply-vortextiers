@@ -115,9 +115,9 @@ model Application {
   updatedAt           DateTime          @updatedAt
   adminNotes          AdminNote[]
   answers             Answer[]
-  mode                GameMode?         @relation(fields: [modeId], references: [id])
+  mode                GameMode?         @relation(fields: [modeId], references: [id], onDelete: SetNull)
   position            StaffPosition     @relation(fields: [positionId], references: [id])
-  reviewedBy          User?             @relation("ReviewerApplications", fields: [reviewedById], references: [id])
+  reviewedBy          User?             @relation("ReviewerApplications", fields: [reviewedById], references: [id], onDelete: SetNull)
   user                User              @relation("ApplicantApplications", fields: [userId], references: [id], onDelete: Cascade)
   emailEvents         EmailEvent[]
   statusHistory       StatusHistory[]
@@ -147,7 +147,7 @@ model Answer {
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
   application      Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  question         Question    @relation(fields: [questionId], references: [id])
+  question         Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([applicationId, questionId])
   @@index([applicationId])
@@ -169,7 +169,7 @@ model Upload {
   category                UploadCategory @default(IMAGE)
   createdAt               DateTime       @default(now())
   application             Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  question                Question?      @relation(fields: [questionId], references: [id])
+  question                Question?      @relation(fields: [questionId], references: [id], onDelete: SetNull)
 
   @@index([applicationId])
   @@index([questionId])
@@ -201,7 +201,7 @@ model StatusHistory {
   metadata      Json?
   createdAt     DateTime          @default(now())
   application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  changedBy     User?             @relation(fields: [changedById], references: [id])
+  changedBy     User?             @relation(fields: [changedById], references: [id], onDelete: SetNull)
 
   @@index([applicationId, createdAt])
   @@index([applicationId], map: "idx_status_history_application")
@@ -238,7 +238,7 @@ model AuditLog {
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
-  actor      User?    @relation(fields: [actorId], references: [id])
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([actorId])
   @@index([action])
