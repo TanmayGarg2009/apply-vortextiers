@@ -438,7 +438,14 @@ export const dbService = {
   async getUserApplications(userId: string): Promise<ApplicationData[]> {
     if (await canConnectToDatabase()) {
       const apps = await prisma.application.findMany({
-        where: { userId },
+        where: {
+          OR: [
+            { userId },
+            { discordId: userId },
+            { user: { discordId: userId } },
+            { user: { id: userId } },
+          ],
+        },
         include: {
           position: true,
           mode: true,
@@ -449,7 +456,7 @@ export const dbService = {
     }
 
     return Array.from(memoryStore.applications.values())
-      .filter((a) => a.userId === userId)
+      .filter((a) => a.userId === userId || a.discordId === userId)
       .map((app) => ({
         ...app,
         position: memoryStore.positions.get(app.positionId),
@@ -559,14 +566,84 @@ export const dbService = {
     const id = await this.generateApplicationId();
 
     if (await canConnectToDatabase()) {
+      // 1. Ensure user exists in database
+      let dbUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { id: params.userId },
+            { discordId: params.userId },
+            { discordId: params.discordId },
+          ],
+        },
+      });
+
+      if (!dbUser) {
+        dbUser = await prisma.user.upsert({
+          where: { discordId: params.discordId },
+          update: { email: params.email },
+          create: {
+            discordId: params.discordId,
+            discordUsername: params.discordId,
+            email: params.email,
+            role: Role.APPLICANT,
+          },
+        });
+      }
+
+      // 2. Resolve valid position ID
+      let dbPosition = await prisma.staffPosition.findFirst({
+        where: {
+          OR: [
+            { id: params.positionId },
+            { slug: params.positionId },
+          ],
+        },
+      });
+
+      if (!dbPosition) {
+        dbPosition = await prisma.staffPosition.findFirst({
+          where: { enabled: true },
+          orderBy: { order: "asc" },
+        });
+      }
+
+      if (!dbPosition) {
+        dbPosition = await prisma.staffPosition.create({
+          data: {
+            slug: "tier-tester",
+            name: "Tier Tester",
+            description: "Assess contenders in live tier testing matches and scoring brackets.",
+            enabled: true,
+            order: 1,
+            requiredEvidence: true,
+          },
+        });
+      }
+
+      // 3. Resolve valid mode ID if passed
+      let dbModeId: string | null = null;
+      if (params.modeId) {
+        const dbMode = await prisma.gameMode.findFirst({
+          where: {
+            OR: [
+              { id: params.modeId },
+              { slug: params.modeId },
+            ],
+          },
+        });
+        if (dbMode) {
+          dbModeId = dbMode.id;
+        }
+      }
+
       const app = await prisma.application.create({
         data: {
           id,
-          userId: params.userId,
+          userId: dbUser.id,
           discordId: params.discordId,
           email: params.email,
-          positionId: params.positionId,
-          modeId: params.modeId || null,
+          positionId: dbPosition.id,
+          modeId: dbModeId,
           minecraftUsername: params.minecraftUsername || null,
           status: "DRAFT",
           version: 1,

@@ -58,14 +58,19 @@ export async function checkApplicationAccess(
 ) {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { userId: true, status: true },
+    select: { userId: true, discordId: true, status: true },
   });
 
   if (!application) {
     throw new Error("Application not found.");
   }
 
-  const isOwner = application.userId === user.id;
+  const isOwner =
+    application.userId === user.id ||
+    application.discordId === user.discordId ||
+    application.discordId === user.id ||
+    application.userId === user.discordId;
+
   const isStaff = user.role === "REVIEWER" || user.role === "ADMIN";
 
   if (!isOwner && !isStaff) {
