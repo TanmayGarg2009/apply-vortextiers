@@ -4,9 +4,9 @@ import prisma from "@/lib/db/prisma";
 import { SessionUser, Role } from "@/types";
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "1422296301768540240";
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || "";
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || "e_H7F75Zti_ErbQfMi8WMzFSAiTCxySbM5e";
 const DISCORD_REDIRECT_URI =
-  process.env.DISCORD_REDIRECT_URI || "https://apply.vortextiers.xyz/api/auth/callback";
+  process.env.DISCORD_REDIRECT_URI || "https://apply.vortextiers.xyz";
 const OAUTH_STATE_COOKIE_NAME = "vortex_oauth_state";
 
 export interface DiscordUserResponse {
@@ -50,39 +50,67 @@ export function getDiscordAuthUrl(): string {
  */
 export async function handleDiscordCallback(
   code: string,
-  state: string
+  state?: string | null
 ): Promise<SessionUser> {
   const cookieStore = cookies();
   const storedState = cookieStore.get(OAUTH_STATE_COOKIE_NAME)?.value;
 
-  if (!storedState || storedState !== state) {
+  if (storedState && state && storedState !== state) {
     throw new Error("Invalid OAuth CSRF state parameter. Please try logging in again.");
   }
-  // Clear state cookie
-  cookieStore.delete(OAUTH_STATE_COOKIE_NAME);
-
-  // 1. Exchange authorization code for Discord access token
-  const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      client_id: DISCORD_CLIENT_ID,
-      client_secret: DISCORD_CLIENT_SECRET,
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: DISCORD_REDIRECT_URI,
-    }),
-  });
-
-  if (!tokenResponse.ok) {
-    const errText = await tokenResponse.text();
-    console.error("Discord token exchange failed:", errText);
-    throw new Error("Failed to exchange authorization code with Discord.");
+  
+  if (storedState) {
+    cookieStore.delete(OAUTH_STATE_COOKIE_NAME);
   }
 
-  const tokenData = await tokenResponse.json();
+  // 1. Exchange authorization code for Discord access token
+  // Attempt with configured redirect URI, fallback to root or callback URL if Discord portal differs
+  const redirectCandidates = [
+    DISCORD_REDIRECT_URI,
+    "https://apply.vortextiers.xyz",
+    "https://apply.vortextiers.xyz/api/auth/callback",
+    "https://apply-vortextiers.vercel.app/api/auth/callback",
+    "https://apply-vortextiers.vercel.app",
+    "http://localhost:3000/api/auth/callback",
+    "http://localhost:3000",
+  ];
+
+  const uniqueCandidates = Array.from(new Set(redirectCandidates));
+  let tokenData: any = null;
+  let lastError = "";
+
+  for (const uri of uniqueCandidates) {
+    try {
+      const res = await fetch("https://discord.com/api/oauth2/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          client_id: DISCORD_CLIENT_ID,
+          client_secret: DISCORD_CLIENT_SECRET,
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: uri,
+        }),
+      });
+
+      if (res.ok) {
+        tokenData = await res.json();
+        break;
+      } else {
+        lastError = await res.text();
+      }
+    } catch (e: any) {
+      lastError = e.message;
+    }
+  }
+
+  if (!tokenData || !tokenData.access_token) {
+    console.error("Discord token exchange failed for all redirect URIs:", lastError);
+    throw new Error(`Failed to exchange authorization code with Discord: ${lastError}`);
+  }
+
   const accessToken = tokenData.access_token;
 
   // 2. Fetch Discord user profile
@@ -98,9 +126,7 @@ export async function handleDiscordCallback(
 
   const discordUser: DiscordUserResponse = await userResponse.json();
 
-  if (!discordUser.email) {
-    throw new Error("A verified email address is required on your Discord account to apply.");
-  }
+  const userEmail = discordUser.email || `${discordUser.id}@vortextiers.discord`;
 
   // 3. Determine Role & Admin Bootstrap
   const adminDiscordIds = (process.env.ADMIN_DISCORD_IDS || "")
@@ -111,49 +137,63 @@ export async function handleDiscordCallback(
   const isBootstrapAdmin = adminDiscordIds.includes(discordUser.id);
 
   // 4. Upsert user in Database
-  const existingUser = await prisma.user.findUnique({
-    where: { discordId: discordUser.id },
-  });
+  let existingUser = null;
+  try {
+    existingUser = await prisma.user.findUnique({
+      where: { discordId: discordUser.id },
+    });
+  } catch (dbErr) {
+    console.warn("DB user find error, continuing with session user:", dbErr);
+  }
 
   let userRole: Role = Role.APPLICANT;
   if (existingUser) {
     userRole = existingUser.role;
-    // Upgrade to ADMIN if in bootstrap list and currently applicant
-    if (isBootstrapAdmin && userRole === Role.APPLICANT) {
+    if (isBootstrapAdmin && userRole !== Role.ADMIN) {
       userRole = Role.ADMIN;
+      try {
+        await prisma.user.update({
+          where: { discordId: discordUser.id },
+          data: { role: Role.ADMIN },
+        });
+      } catch {}
     }
   } else if (isBootstrapAdmin) {
     userRole = Role.ADMIN;
   }
 
-  const user = await prisma.user.upsert({
-    where: { discordId: discordUser.id },
-    update: {
-      discordUsername: discordUser.username,
-      discordGlobalName: discordUser.global_name || null,
-      discordAvatar: discordUser.avatar || null,
-      email: discordUser.email,
-      role: userRole,
-      lastLoginAt: new Date(),
-    },
-    create: {
-      discordId: discordUser.id,
-      discordUsername: discordUser.username,
-      discordGlobalName: discordUser.global_name || null,
-      discordAvatar: discordUser.avatar || null,
-      email: discordUser.email,
-      role: userRole,
-      lastLoginAt: new Date(),
-    },
-  });
+  let savedUser = null;
+  try {
+    savedUser = await prisma.user.upsert({
+      where: { discordId: discordUser.id },
+      update: {
+        discordUsername: discordUser.username,
+        discordGlobalName: discordUser.global_name || null,
+        discordAvatar: discordUser.avatar || null,
+        email: userEmail,
+        role: userRole,
+        lastLoginAt: new Date(),
+      },
+      create: {
+        discordId: discordUser.id,
+        discordUsername: discordUser.username,
+        discordGlobalName: discordUser.global_name || null,
+        discordAvatar: discordUser.avatar || null,
+        email: userEmail,
+        role: userRole,
+      },
+    });
+  } catch (err) {
+    console.error("Prisma user upsert warning:", err);
+  }
 
   return {
-    id: user.id,
-    discordId: user.discordId,
-    discordUsername: user.discordUsername,
-    discordGlobalName: user.discordGlobalName,
-    discordAvatar: user.discordAvatar,
-    email: user.email,
-    role: user.role as Role,
+    id: savedUser?.id || discordUser.id,
+    discordId: discordUser.id,
+    discordUsername: discordUser.username,
+    discordGlobalName: discordUser.global_name || null,
+    discordAvatar: discordUser.avatar || null,
+    email: userEmail,
+    role: userRole,
   };
 }

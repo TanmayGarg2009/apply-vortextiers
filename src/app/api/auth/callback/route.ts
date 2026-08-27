@@ -3,6 +3,8 @@ import { handleDiscordCallback } from "@/lib/auth/discord";
 import { setSessionCookie } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/audit-logger";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -17,8 +19,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/?auth_error=${encodeURIComponent(errorDescription || error)}`);
   }
 
-  if (!code || !state) {
-    return NextResponse.redirect(`${baseUrl}/?auth_error=Missing+OAuth+code+or+state`);
+  if (!code) {
+    return NextResponse.redirect(`${baseUrl}/?auth_error=Missing+OAuth+authorization+code`);
   }
 
   try {

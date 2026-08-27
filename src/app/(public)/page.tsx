@@ -1,6 +1,8 @@
 import React from "react";
 import Link from "next/link";
-import { getSessionUser } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+import { getSessionUser, setSessionCookie } from "@/lib/auth/session";
+import { handleDiscordCallback } from "@/lib/auth/discord";
 import dbService from "@/lib/db/store";
 import { Button } from "@/components/ui/button";
 import { ModeBadge } from "@/components/shared/ModeBadge";
@@ -20,7 +22,29 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-export default async function HomePage() {
+interface HomePageProps {
+  searchParams?: {
+    code?: string;
+    state?: string;
+    error?: string;
+    error_description?: string;
+    auth_error?: string;
+  };
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  // If Discord redirected directly to root domain with ?code=...
+  if (searchParams?.code) {
+    try {
+      const authUser = await handleDiscordCallback(searchParams.code, searchParams.state);
+      await setSessionCookie(authUser);
+      redirect("/dashboard");
+    } catch (err: any) {
+      console.error("Home page direct OAuth error:", err);
+      redirect(`/?auth_error=${encodeURIComponent(err.message || "Authentication failed")}`);
+    }
+  }
+
   const user = await getSessionUser();
   const settings = await dbService.getSettings();
   const positions = await dbService.getStaffPositions();
@@ -38,6 +62,13 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-16">
+      {/* Auth Error Banner if present */}
+      {searchParams?.auth_error && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-xs text-red-400 font-mono flex items-center gap-2">
+          <span>⚠️ {searchParams.auth_error}</span>
+        </div>
+      )}
+
       {/* Announcement Banner */}
       {banner && (
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-xs text-primary font-mono font-bold tracking-wide shadow-sm animate-pulse">
