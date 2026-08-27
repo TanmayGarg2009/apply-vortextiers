@@ -18,6 +18,7 @@ import {
   LogOut,
   ExternalLink,
   User,
+  Menu,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -42,10 +43,18 @@ export function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
   const [discordOpen, setDiscordOpen] = useState(false);
   const [modOpen, setModOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileDiscordOpen, setMobileDiscordOpen] = useState(false);
+  const [mobileModOpen, setMobileModOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   const discordRef = useRef<HTMLDivElement>(null);
   const modRef = useRef<HTMLDivElement>(null);
@@ -409,7 +418,7 @@ export function Navbar({ user }: NavbarProps) {
 
           {/* User Auth Buttons */}
           {user ? (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <Link href="/dashboard" className="flex items-center gap-2 rounded-lg border border-border/80 bg-secondary/40 px-2.5 py-1 hover:border-border transition-colors">
                 <div className="h-6 w-6 rounded-full overflow-hidden border border-border flex items-center justify-center text-[10px] font-bold bg-primary/20 text-primary">
                   {user.discordAvatar ? (
@@ -427,7 +436,7 @@ export function Navbar({ user }: NavbarProps) {
                 </span>
               </Link>
 
-              <Button asChild size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-white">
+              <Button asChild size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-white hidden sm:flex">
                 <a href="/api/auth/logout" title="Sign Out">
                   <LogOut className="h-4 w-4" />
                 </a>
@@ -447,8 +456,181 @@ export function Navbar({ user }: NavbarProps) {
               </a>
             </Button>
           )}
+
+          {/* Mobile Hamburger Toggle Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden h-8 w-8 p-0 text-muted-foreground hover:text-white"
+            aria-label="Toggle Navigation Menu"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
         </div>
       </div>
+
+      {/* Mobile Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-b border-border bg-[#0f1319]/95 backdrop-blur-md px-4 py-4 space-y-4 animate-in slide-in-from-top-2 duration-150">
+          {/* Mobile Player Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search player / tiers..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowResults(true);
+              }}
+              className="h-9 w-full rounded-lg border border-border bg-secondary/40 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setShowResults(false);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Nav Links List */}
+          <div className="space-y-1 text-sm font-medium">
+            <Link
+              href="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-secondary/60 transition-colors ${
+                pathname === "/" ? "bg-secondary/80 text-primary font-bold" : "text-muted-foreground"
+              }`}
+            >
+              🏠 Home
+            </Link>
+
+            <a
+              href="https://vortextiers.xyz"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-secondary/60 text-muted-foreground hover:text-white transition-colors"
+            >
+              <span className="flex items-center gap-2.5">🏅 Rankings</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+
+            {/* Mobile Mod Submenu */}
+            <div className="rounded-lg border border-border/50 bg-[#161c28]/60 p-2 space-y-1">
+              <button
+                onClick={() => setMobileModOpen(!mobileModOpen)}
+                className="w-full flex items-center justify-between px-2 py-1 text-xs font-bold text-primary font-mono uppercase"
+              >
+                <span className="flex items-center gap-1.5"><Boxes className="h-3.5 w-3.5" /> Vortex Tier Tagger Mod</span>
+                <ChevronDown className={`h-3 w-3 transition-transform ${mobileModOpen ? "rotate-180" : ""}`} />
+              </button>
+              {mobileModOpen && (
+                <div className="pt-2 space-y-1">
+                  <a
+                    href="https://modrinth.com/mod/vortex-tier-tagger"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between px-2.5 py-2 rounded-md bg-secondary/40 hover:bg-secondary/70 text-xs text-white"
+                  >
+                    <div className="flex items-center gap-2">
+                      <img src="https://modrinth.com/favicon.ico" alt="Modrinth" className="w-4 h-4 object-contain" />
+                      <span>Modrinth <span className="text-[9px] px-1 py-0.2 rounded bg-[#1BD96A]/20 text-[#1BD96A]">Recommended</span></span>
+                    </div>
+                    <span className="text-primary font-bold">GET ↗</span>
+                  </a>
+                  <a
+                    href="https://www.curseforge.com/minecraft/mc-mods/vortex-tier-tagger"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between px-2.5 py-2 rounded-md bg-secondary/40 hover:bg-secondary/70 text-xs text-white"
+                  >
+                    <div className="flex items-center gap-2">
+                      <img src="https://www.curseforge.com/favicon.ico" alt="CurseForge" className="w-4 h-4 object-contain" />
+                      <span>CurseForge</span>
+                    </div>
+                    <span className="text-primary font-bold">GET ↗</span>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Discord Submenu */}
+            <div className="rounded-lg border border-border/50 bg-[#161c28]/60 p-2 space-y-1">
+              <button
+                onClick={() => setMobileDiscordOpen(!mobileDiscordOpen)}
+                className="w-full flex items-center justify-between px-2 py-1 text-xs font-bold text-primary font-mono uppercase"
+              >
+                <span className="flex items-center gap-1.5"><MessageCircle className="h-3.5 w-3.5" /> Discord Networks</span>
+                <ChevronDown className={`h-3 w-3 transition-transform ${mobileDiscordOpen ? "rotate-180" : ""}`} />
+              </button>
+              {mobileDiscordOpen && (
+                <div className="pt-2 grid grid-cols-2 gap-1">
+                  {DISCORD_SERVERS.map((server) => (
+                    <a
+                      key={server.label}
+                      href={server.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-1.5 rounded-md bg-secondary/30 hover:bg-secondary/60 text-xs text-foreground"
+                    >
+                      <img src={server.icon} alt={server.label} className="h-4 w-4" />
+                      <span className="truncate">{server.label}</span>
+                    </a>
+                  ))}
+                  <div className="col-span-2 pt-1 border-t border-border/40">
+                    <a
+                      href="https://discord.gg/kjsMpEPdNe"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-1.5 rounded-md bg-primary/10 text-xs text-primary font-bold"
+                    >
+                      <span>Vortex Network Discord Hub</span>
+                      <span>JOIN ↗</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Link
+              href="/dashboard"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-secondary/60 transition-colors ${
+                pathname === "/dashboard" ? "bg-secondary/80 text-primary font-bold" : "text-muted-foreground"
+              }`}
+            >
+              📄 Applicant Dashboard
+            </Link>
+
+            {isAdmin && (
+              <Link
+                href="/admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-secondary/60 transition-colors ${
+                  pathname.startsWith("/admin") ? "bg-purple-950/40 text-purple-300 font-bold" : "text-purple-400"
+                }`}
+              >
+                <Shield className="h-4 w-4" /> Staff Review Suite
+              </Link>
+            )}
+
+            {user && (
+              <a
+                href="/api/auth/logout"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-rose-500/10 text-rose-400 text-xs font-semibold transition-colors"
+              >
+                <LogOut className="h-4 w-4" /> Sign Out ({user.discordUsername})
+              </a>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

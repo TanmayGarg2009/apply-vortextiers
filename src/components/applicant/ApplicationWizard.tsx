@@ -272,8 +272,41 @@ export function ApplicationWizard({
         <AutosavePill status={autosaveStatus} lastSavedAt={lastSavedAt} />
       </div>
 
-      {/* Stepped Tactical Header */}
-      <div className="grid grid-cols-5 gap-2 sm:gap-3">
+      {/* Mobile Step Indicator */}
+      <div className="sm:hidden rounded-xl border border-border/80 bg-[#121721] p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="h-6 w-6 rounded-full bg-primary/20 text-primary border border-primary/40 font-mono text-xs font-bold flex items-center justify-center">
+              {currentStep}
+            </span>
+            <span className="text-xs font-bold font-mono text-white">
+              {steps[currentStep - 1]?.title}
+            </span>
+          </div>
+          <span className="text-[11px] font-mono text-muted-foreground">
+            Step {currentStep} of {steps.length}
+          </span>
+        </div>
+        {/* Progress Bar */}
+        <div className="w-full bg-secondary/80 h-1.5 rounded-full overflow-hidden flex gap-1">
+          {steps.map((s) => (
+            <div
+              key={s.num}
+              onClick={() => setCurrentStep(s.num)}
+              className={`flex-1 h-full rounded-full transition-all cursor-pointer ${
+                s.num === currentStep
+                  ? "bg-primary"
+                  : s.num < currentStep
+                  ? "bg-emerald-500"
+                  : "bg-border/60"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop & Tablet Stepped Tactical Header */}
+      <div className="hidden sm:grid grid-cols-5 gap-2 sm:gap-3">
         {steps.map((s) => {
           const isPassed = currentStep > s.num;
           const isCurrent = currentStep === s.num;
