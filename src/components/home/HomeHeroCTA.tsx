@@ -59,9 +59,9 @@ export function HomeHeroCTA({ isApplicationsOpen, initialUser }: HomeHeroCTAProp
           size="lg"
           className="bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm px-8 h-12 gap-2 shadow-lg shadow-primary/25 font-mono transition-all duration-200 hover:scale-[1.02]"
         >
-          <Link href="/api/auth/login?redirect_to=/apply">
+          <a href="/api/auth/login?redirect_to=/apply">
             Apply Now — Discord Login <ArrowRight className="h-4 w-4" />
-          </Link>
+          </a>
         </Button>
       );
     }

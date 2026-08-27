@@ -81,9 +81,9 @@ export default function LogoutPage() {
             variant="outline"
             className="w-full border-border/80 bg-secondary/30 hover:bg-secondary/60 text-muted-foreground hover:text-white font-mono text-xs h-10"
           >
-            <Link href="/api/auth/login">
+            <a href="/api/auth/login">
               Sign In Again
-            </Link>
+            </a>
           </Button>
         </div>
       </div>
