@@ -683,41 +683,54 @@ export const dbService = {
     meta?: { minecraftUsername?: string | null; modeId?: string | null; positionId?: string }
   ) {
     if (await canConnectToDatabase()) {
-      await prisma.$transaction(async (tx) => {
-        if (meta) {
-          await tx.application.update({
-            where: { id: applicationId },
-            data: {
-              minecraftUsername: meta.minecraftUsername !== undefined ? meta.minecraftUsername : undefined,
-              modeId: meta.modeId !== undefined ? meta.modeId : undefined,
-              positionId: meta.positionId !== undefined ? meta.positionId : undefined,
-              updatedAt: new Date(),
-            },
-          });
-        }
-
-        for (const ans of answers) {
-          await tx.answer.upsert({
-            where: {
-              applicationId_questionId: {
-                applicationId,
-                questionId: ans.questionId,
+      await prisma.$transaction(
+        async (tx) => {
+          if (meta) {
+            await tx.application.update({
+              where: { id: applicationId },
+              data: {
+                minecraftUsername: meta.minecraftUsername !== undefined ? meta.minecraftUsername : undefined,
+                modeId: meta.modeId !== undefined ? meta.modeId : undefined,
+                positionId: meta.positionId !== undefined ? meta.positionId : undefined,
+                updatedAt: new Date(),
               },
-            },
-            update: {
-              value: ans.value,
-              selectedOptions: ans.selectedOptions && ans.selectedOptions.length > 0 ? (ans.selectedOptions as any) : Prisma.DbNull,
-              updatedAt: new Date(),
-            },
-            create: {
-              applicationId,
-              questionId: ans.questionId,
-              value: ans.value,
-              selectedOptions: ans.selectedOptions && ans.selectedOptions.length > 0 ? (ans.selectedOptions as any) : Prisma.DbNull,
-            },
-          });
-        }
-      });
+            });
+          }
+
+          if (answers.length > 0) {
+            await Promise.all(
+              answers.map((ans) =>
+                tx.answer.upsert({
+                  where: {
+                    applicationId_questionId: {
+                      applicationId,
+                      questionId: ans.questionId,
+                    },
+                  },
+                  update: {
+                    value: ans.value,
+                    selectedOptions:
+                      ans.selectedOptions && ans.selectedOptions.length > 0
+                        ? (ans.selectedOptions as any)
+                        : Prisma.DbNull,
+                    updatedAt: new Date(),
+                  },
+                  create: {
+                    applicationId,
+                    questionId: ans.questionId,
+                    value: ans.value,
+                    selectedOptions:
+                      ans.selectedOptions && ans.selectedOptions.length > 0
+                        ? (ans.selectedOptions as any)
+                        : Prisma.DbNull,
+                  },
+                })
+              )
+            );
+          }
+        },
+        { timeout: 30000, maxWait: 10000 }
+      );
       return;
     }
 
@@ -748,49 +761,55 @@ export const dbService = {
     const qMap = new Map(questions.map((q) => [q.id, q]));
 
     if (await canConnectToDatabase()) {
-      return await prisma.$transaction(async (tx) => {
-        const currentApp = await tx.application.findUnique({ where: { id: applicationId } });
-        const fromStatus = currentApp?.status || "DRAFT";
+      return await prisma.$transaction(
+        async (tx) => {
+          const currentApp = await tx.application.findUnique({ where: { id: applicationId } });
+          const fromStatus = currentApp?.status || "DRAFT";
 
-        // Snapshot all answered questions
-        const answers = await tx.answer.findMany({ where: { applicationId } });
-        for (const ans of answers) {
-          const questionDef = qMap.get(ans.questionId);
-          if (questionDef) {
-            await tx.answer.update({
-              where: { id: ans.id },
-              data: {
-                questionSnapshot: JSON.stringify(questionDef),
-              },
-            });
-          }
-        }
+          // Snapshot all answered questions concurrently
+          const answers = await tx.answer.findMany({ where: { applicationId } });
+          await Promise.all(
+            answers.map((ans) => {
+              const questionDef = qMap.get(ans.questionId);
+              if (questionDef) {
+                return tx.answer.update({
+                  where: { id: ans.id },
+                  data: {
+                    questionSnapshot: JSON.stringify(questionDef),
+                  },
+                });
+              }
+              return Promise.resolve();
+            })
+          );
 
-        const updatedApp = await tx.application.update({
-          where: { id: applicationId },
-          data: {
-            status: "SUBMITTED",
-            submittedAt: new Date(),
-            updatedAt: new Date(),
-          },
-          include: {
-            user: true,
-            position: true,
-            mode: true,
-          },
-        });
+          const updatedApp = await tx.application.update({
+            where: { id: applicationId },
+            data: {
+              status: "SUBMITTED",
+              submittedAt: new Date(),
+              updatedAt: new Date(),
+            },
+            include: {
+              user: true,
+              position: true,
+              mode: true,
+            },
+          });
 
-        await tx.statusHistory.create({
-          data: {
-            applicationId,
-            fromStatus,
-            toStatus: "SUBMITTED",
-            note: "Applicant submitted application for staff review.",
-          },
-        });
+          await tx.statusHistory.create({
+            data: {
+              applicationId,
+              fromStatus,
+              toStatus: "SUBMITTED",
+              note: "Applicant submitted application for staff review.",
+            },
+          });
 
-        return updatedApp;
-      });
+          return updatedApp;
+        },
+        { timeout: 30000, maxWait: 10000 }
+      );
     }
 
     const app = memoryStore.applications.get(applicationId);

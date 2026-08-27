@@ -35,6 +35,9 @@ const DISCORD_SERVERS = [
   { label: "Mace", icon: "/icons/mace.svg", url: "https://discord.gg/NjWpNsK96K" },
 ];
 
+let cachedPlayersList: any[] | null = null;
+let lastPlayersFetchTime = 0;
+
 export function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
   const [discordOpen, setDiscordOpen] = useState(false);
@@ -47,6 +50,31 @@ export function Navbar({ user }: NavbarProps) {
   const discordRef = useRef<HTMLDivElement>(null);
   const modRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const discordTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const modTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleDiscordEnter = () => {
+    if (discordTimerRef.current) clearTimeout(discordTimerRef.current);
+    setDiscordOpen(true);
+  };
+
+  const handleDiscordLeave = () => {
+    discordTimerRef.current = setTimeout(() => {
+      setDiscordOpen(false);
+    }, 250);
+  };
+
+  const handleModEnter = () => {
+    if (modTimerRef.current) clearTimeout(modTimerRef.current);
+    setModOpen(true);
+  };
+
+  const handleModLeave = () => {
+    modTimerRef.current = setTimeout(() => {
+      setModOpen(false);
+    }, 250);
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -61,10 +89,14 @@ export function Navbar({ user }: NavbarProps) {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      if (discordTimerRef.current) clearTimeout(discordTimerRef.current);
+      if (modTimerRef.current) clearTimeout(modTimerRef.current);
+    };
   }, []);
 
-  // Search players on Vortex Tiers API
+  // Search players on Vortex Tiers API with local caching for instant response
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -73,14 +105,28 @@ export function Navbar({ user }: NavbarProps) {
     }
 
     const timer = setTimeout(async () => {
+      const q = searchQuery.toLowerCase().trim();
+      const now = Date.now();
+
+      if (cachedPlayersList && now - lastPlayersFetchTime < 60000) {
+        const filtered = cachedPlayersList.filter((p: any) =>
+          p.username?.toLowerCase().includes(q)
+        );
+        setSearchResults(filtered.slice(0, 6));
+        setSearching(false);
+        return;
+      }
+
       setSearching(true);
       try {
         const res = await fetch("https://api.vortextiers.xyz/players-api");
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.players)) {
+            cachedPlayersList = data.players;
+            lastPlayersFetchTime = now;
             const filtered = data.players.filter((p: any) =>
-              p.username.toLowerCase().includes(searchQuery.toLowerCase())
+              p.username?.toLowerCase().includes(q)
             );
             setSearchResults(filtered.slice(0, 6));
           }
@@ -90,7 +136,7 @@ export function Navbar({ user }: NavbarProps) {
       } finally {
         setSearching(false);
       }
-    }, 250);
+    }, 150);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -141,8 +187,8 @@ export function Navbar({ user }: NavbarProps) {
             <div
               className="relative"
               ref={modRef}
-              onMouseEnter={() => setModOpen(true)}
-              onMouseLeave={() => setModOpen(false)}
+              onMouseEnter={handleModEnter}
+              onMouseLeave={handleModLeave}
             >
               <button className="flex items-center gap-1.5 hover:text-white transition-colors py-2">
                 <Boxes className="h-3.5 w-3.5" /> Mod
@@ -154,7 +200,11 @@ export function Navbar({ user }: NavbarProps) {
               </button>
 
               {modOpen && (
-                <div className="absolute top-full left-0 mt-1 w-80 rounded-xl border border-border bg-[#161c28] shadow-2xl p-2 space-y-1 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div
+                  onMouseEnter={handleModEnter}
+                  onMouseLeave={handleModLeave}
+                  className="absolute top-full left-0 mt-1.5 w-80 rounded-xl border border-border bg-[#161c28] shadow-2xl p-2 space-y-1 z-50 animate-in fade-in zoom-in-95 duration-150 before:absolute before:-top-3 before:left-0 before:right-0 before:h-3 before:content-['']"
+                >
                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold tracking-wider text-primary uppercase font-mono">
                     Vortex Tier Tagger Mod
                   </div>
@@ -198,8 +248,8 @@ export function Navbar({ user }: NavbarProps) {
             <div
               className="relative"
               ref={discordRef}
-              onMouseEnter={() => setDiscordOpen(true)}
-              onMouseLeave={() => setDiscordOpen(false)}
+              onMouseEnter={handleDiscordEnter}
+              onMouseLeave={handleDiscordLeave}
             >
               <button className="flex items-center gap-1.5 hover:text-white transition-colors py-2">
                 <MessageCircle className="h-3.5 w-3.5" /> Discord
@@ -211,7 +261,11 @@ export function Navbar({ user }: NavbarProps) {
               </button>
 
               {discordOpen && (
-                <div className="absolute top-full left-0 mt-1 w-96 rounded-xl border border-border bg-[#161c28] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div
+                  onMouseEnter={handleDiscordEnter}
+                  onMouseLeave={handleDiscordLeave}
+                  className="absolute top-full left-0 mt-1.5 w-96 rounded-xl border border-border bg-[#161c28] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 before:absolute before:-top-3 before:left-0 before:right-0 before:h-3 before:content-['']"
+                >
                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold tracking-wider text-primary uppercase font-mono">
                     Gamemode Discord Networks
                   </div>
