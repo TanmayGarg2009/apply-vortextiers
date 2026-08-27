@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import Link from "next/link";
 import dbService from "@/lib/db/store";
 import { ApplicationStatus } from "@/types";
@@ -11,11 +11,10 @@ import { formatDate } from "@/lib/utils";
 import {
   FileSpreadsheet,
   Search,
-  Filter,
-  ArrowUpDown,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 
 interface ApplicationsPageProps {
@@ -28,6 +27,165 @@ interface ApplicationsPageProps {
   };
 }
 
+function TableSkeleton() {
+  return (
+    <div className="rounded-xl border border-border/80 bg-card p-8 text-center space-y-4">
+      <div className="flex items-center justify-center gap-2 text-primary font-mono text-xs">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Streaming applications...
+      </div>
+      <div className="space-y-2 max-w-xl mx-auto">
+        <div className="h-6 bg-secondary/50 rounded animate-pulse" />
+        <div className="h-6 bg-secondary/30 rounded animate-pulse" />
+        <div className="h-6 bg-secondary/20 rounded animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+async function ApplicationsTableData({
+  query,
+  status,
+  positionId,
+  modeId,
+  page,
+  limit,
+}: {
+  query: string;
+  status?: ApplicationStatus;
+  positionId?: string;
+  modeId?: string;
+  page: number;
+  limit: number;
+}) {
+  const result = await dbService.searchApplications({
+    query,
+    status,
+    positionId,
+    modeId,
+    page,
+    limit,
+  });
+
+  return (
+    <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="border-b border-border/70 bg-secondary/40 text-muted-foreground font-mono uppercase tracking-wider">
+            <tr>
+              <th className="py-3 px-4">Application ID</th>
+              <th className="py-3 px-4">Applicant</th>
+              <th className="py-3 px-4">Position</th>
+              <th className="py-3 px-4">PvP Mode</th>
+              <th className="py-3 px-4">Status</th>
+              <th className="py-3 px-4">Submitted At</th>
+              <th className="py-3 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            {result.applications.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                  No applications found matching your criteria.
+                </td>
+              </tr>
+            ) : (
+              result.applications.map((app) => (
+                <tr key={app.id} className="hover:bg-secondary/30 transition-colors">
+                  <td className="py-3.5 px-4 font-mono font-bold text-primary">
+                    {app.id}
+                  </td>
+
+                  <td className="py-3.5 px-4">
+                    <div className="flex items-center gap-2.5">
+                      <MinecraftAvatar username={app.minecraftUsername} size={22} />
+                      <div className="flex flex-col">
+                        <span className="font-bold text-foreground">
+                          {app.user?.discordGlobalName || app.user?.discordUsername || app.discordId}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]">
+                          {app.email}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td className="py-3.5 px-4 font-medium text-foreground">
+                    {app.position?.name || "Staff"}
+                  </td>
+
+                  <td className="py-3.5 px-4">
+                    {app.mode ? (
+                      <ModeBadge slug={app.mode.slug} name={app.mode.name} />
+                    ) : (
+                      <span className="text-muted-foreground/60">—</span>
+                    )}
+                  </td>
+
+                  <td className="py-3.5 px-4">
+                    <StatusBadge status={app.status} />
+                  </td>
+
+                  <td className="py-3.5 px-4 font-mono text-muted-foreground">
+                    {formatDate(app.submittedAt || app.createdAt)}
+                  </td>
+
+                  <td className="py-3.5 px-4 text-right">
+                    <Button asChild size="sm" variant="outline" className="h-7 text-xs gap-1 font-semibold">
+                      <Link href={`/admin/applications/${app.id}`}>
+                        Review <ExternalLink className="h-3 w-3 ml-0.5" />
+                      </Link>
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination Bar */}
+      {result.totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-border/70 p-4 text-xs">
+          <span className="text-muted-foreground font-mono">
+            Page {page} of {result.totalPages} ({result.total} total)
+          </span>
+
+          <div className="flex gap-2">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              className="h-8 text-xs gap-1"
+            >
+              <Link
+                href={`/admin/applications?page=${page - 1}&query=${encodeURIComponent(query)}&status=${status || ""}&positionId=${positionId || ""}`}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Previous
+              </Link>
+            </Button>
+
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              disabled={page >= result.totalPages}
+              className="h-8 text-xs gap-1"
+            >
+              <Link
+                href={`/admin/applications?page=${page + 1}&query=${encodeURIComponent(query)}&status=${status || ""}&positionId=${positionId || ""}`}
+              >
+                Next <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default async function ApplicationsTablePage({
   searchParams,
 }: ApplicationsPageProps) {
@@ -38,15 +196,7 @@ export default async function ApplicationsTablePage({
   const page = parseInt(searchParams.page || "1", 10);
   const limit = 12;
 
-  const [result, positions, gameModes] = await Promise.all([
-    dbService.searchApplications({
-      query,
-      status,
-      positionId,
-      modeId,
-      page,
-      limit,
-    }),
+  const [positions, gameModes] = await Promise.all([
     dbService.getStaffPositions(),
     dbService.getGameModes(),
   ]);
@@ -73,10 +223,6 @@ export default async function ApplicationsTablePage({
             Search, filter, and review incoming Vortex Tiers staff submissions.
           </p>
         </div>
-
-        <span className="text-xs font-mono text-muted-foreground">
-          Showing {result.applications.length} of {result.total} total
-        </span>
       </div>
 
       {/* Filter / Search Toolbar */}
@@ -128,122 +274,17 @@ export default async function ApplicationsTablePage({
         </div>
       </form>
 
-      {/* Applications Table */}
-      <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-border/70 bg-secondary/40 text-muted-foreground font-mono uppercase tracking-wider">
-              <tr>
-                <th className="py-3 px-4">Application ID</th>
-                <th className="py-3 px-4">Applicant</th>
-                <th className="py-3 px-4">Position</th>
-                <th className="py-3 px-4">PvP Mode</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Submitted At</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {result.applications.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-muted-foreground">
-                    No applications found matching your criteria.
-                  </td>
-                </tr>
-              ) : (
-                result.applications.map((app) => (
-                  <tr key={app.id} className="hover:bg-secondary/30 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-primary">
-                      {app.id}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <MinecraftAvatar username={app.minecraftUsername} size={22} />
-                        <div className="flex flex-col">
-                          <span className="font-bold text-foreground">
-                            {app.user?.discordGlobalName || app.user?.discordUsername || app.discordId}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]">
-                            {app.email}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 font-medium text-foreground">
-                      {app.position?.name || "Staff"}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      {app.mode ? (
-                        <ModeBadge slug={app.mode.slug} name={app.mode.name} />
-                      ) : (
-                        <span className="text-muted-foreground/60">—</span>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <StatusBadge status={app.status} />
-                    </td>
-
-                    <td className="py-3.5 px-4 font-mono text-muted-foreground">
-                      {formatDate(app.submittedAt || app.createdAt)}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right">
-                      <Button asChild size="sm" variant="outline" className="h-7 text-xs gap-1 font-semibold">
-                        <Link href={`/admin/applications/${app.id}`}>
-                          Review <ExternalLink className="h-3 w-3 ml-0.5" />
-                        </Link>
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Bar */}
-        {result.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border/70 p-4 text-xs">
-            <span className="text-muted-foreground font-mono">
-              Page {page} of {result.totalPages}
-            </span>
-
-            <div className="flex gap-2">
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                className="h-8 text-xs gap-1"
-              >
-                <Link
-                  href={`/admin/applications?page=${page - 1}&query=${encodeURIComponent(query)}&status=${status || ""}&positionId=${positionId || ""}`}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Previous
-                </Link>
-              </Button>
-
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                disabled={page >= result.totalPages}
-                className="h-8 text-xs gap-1"
-              >
-                <Link
-                  href={`/admin/applications?page=${page + 1}&query=${encodeURIComponent(query)}&status=${status || ""}&positionId=${positionId || ""}`}
-                >
-                  Next <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Streaming Applications Table */}
+      <Suspense fallback={<TableSkeleton />}>
+        <ApplicationsTableData
+          query={query}
+          status={status}
+          positionId={positionId}
+          modeId={modeId}
+          page={page}
+          limit={limit}
+        />
+      </Suspense>
     </div>
   );
 }
