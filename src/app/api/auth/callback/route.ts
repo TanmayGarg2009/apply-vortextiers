@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+  const fromRoot = url.searchParams.get("from_root") === "1";
   const error = url.searchParams.get("error");
   const errorDescription = url.searchParams.get("error_description");
 
@@ -23,8 +24,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/?auth_error=Missing+OAuth+authorization+code`);
   }
 
+  // Parse target destination from state
+  let targetPath = "/dashboard";
+  if (state) {
+    try {
+      const parsed = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
+      if (parsed.to && typeof parsed.to === "string") {
+        targetPath = parsed.to;
+      }
+    } catch {}
+  }
+
   try {
-    const user = await handleDiscordCallback(code, state);
+    const preferredUri = fromRoot
+      ? "https://apply.vortextiers.xyz"
+      : "https://apply.vortextiers.xyz/api/auth/callback";
+
+    const user = await handleDiscordCallback(code, state, preferredUri);
 
     await logAudit({
       actorId: user.id,
@@ -38,7 +54,8 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const res = NextResponse.redirect(`${baseUrl}/dashboard`);
+    const destinationUrl = `${baseUrl}${targetPath.startsWith("/") ? targetPath : "/" + targetPath}`;
+    const res = NextResponse.redirect(destinationUrl);
     attachSessionCookie(res, user);
     return res;
   } catch (err: any) {

@@ -5,7 +5,7 @@ import dbService from "@/lib/db/store";
 export default async function ApplyEntryPage() {
   const user = await getSessionUser();
   if (!user) {
-    redirect("/api/auth/login");
+    redirect("/api/auth/login?redirect_to=/apply");
   }
 
   // 1. Check if applications are globally open

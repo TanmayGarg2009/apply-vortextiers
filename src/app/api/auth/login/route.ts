@@ -1,25 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { getDiscordAuthUrl } from "@/lib/auth/discord";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const state = crypto.randomBytes(24).toString("hex");
-    const clientId = (process.env.DISCORD_CLIENT_ID || "1422296301768540240").trim().replace(/^["']|["']$/g, "");
-    const redirectUri = (process.env.DISCORD_REDIRECT_URI || "https://apply.vortextiers.xyz").trim().replace(/^["']|["']$/g, "");
+    const url = new URL(req.url);
+    const redirectTo = url.searchParams.get("redirect_to") || "/dashboard";
 
-    const params = new URLSearchParams({
-      client_id: clientId,
-      response_type: "code",
-      redirect_uri: redirectUri,
-      scope: "identify email",
-      state,
-      prompt: "consent",
-    });
+    const statePayload = {
+      rnd: crypto.randomBytes(16).toString("hex"),
+      to: redirectTo,
+    };
+    const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
 
-    const authUrl = `https://discord.com/oauth2/authorize?${params.toString()}`;
+    const authUrl = getDiscordAuthUrl(state);
     const res = NextResponse.redirect(authUrl);
+    
     res.cookies.set("vortex_oauth_state", state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -27,6 +25,7 @@ export async function GET() {
       path: "/",
       maxAge: 60 * 15, // 15 minutes
     });
+
     return res;
   } catch (error: any) {
     console.error("Login redirect error:", error);
