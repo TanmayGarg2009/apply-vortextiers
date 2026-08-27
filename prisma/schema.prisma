@@ -154,7 +154,7 @@ model Upload {
   safeFilename            String
   mimeType                String
   sizeBytes               Int
-  googleDriveFileId       String         @unique
+  googleDriveFileId       String
   googleDriveViewLink     String?
   googleDriveDownloadLink String?
   category                UploadCategory @default(IMAGE)
@@ -164,6 +164,7 @@ model Upload {
 
   @@index([applicationId])
   @@index([questionId])
+  @@index([googleDriveFileId])
 }
 
 model AdminNote {
@@ -234,9 +235,9 @@ model AuditLog {
 }
 
 model AppSetting {
-  id          String   @id @default(cuid())
-  key         String   @unique
+  key         String   @id
   value       Json
+  description String?
   updatedById String?
   updatedAt   DateTime @updatedAt
 }
@@ -266,6 +267,14 @@ enum QuestionType {
   NUMERIC
   FILE_UPLOAD
   MINECRAFT_IGN
+  MULTIPLE_SELECT
+  NUMBER
+  URL
+  FILE
+  IMAGE
+  VIDEO
+  MINECRAFT_USERNAME
+  DISCORD_USERNAME
 }
 
 enum UploadCategory {

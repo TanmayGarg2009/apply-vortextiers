@@ -49,15 +49,24 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     dbService.getGameModes(),
   ]);
 
+  const safeSettings = settings || {};
+  const safePositions = Array.isArray(positions) ? positions : [];
+  const safeModes = Array.isArray(gameModes) ? gameModes : [];
+
   let userApps: any[] = [];
   if (user) {
-    userApps = await dbService.getUserApplications(user.id);
+    try {
+      userApps = await dbService.getUserApplications(user.id);
+    } catch {
+      userApps = [];
+    }
   }
-  const hasDraft = userApps.some((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
-  const hasSubmitted = userApps.some((a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW");
+  const safeUserApps = Array.isArray(userApps) ? userApps : [];
+  const hasDraft = safeUserApps.some((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
+  const hasSubmitted = safeUserApps.some((a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW");
 
-  const isApplicationsOpen = settings.applications_open !== false;
-  const banner = settings.announcement_banner as string;
+  const isApplicationsOpen = safeSettings.applications_open !== false;
+  const banner = (safeSettings.announcement_banner as string) || null;
 
   const roleIcons: Record<string, any> = {
     "tier-tester": Swords,
@@ -190,7 +199,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {positions.map((pos) => {
+          {safePositions.map((pos) => {
             const Icon = roleIcons[pos.slug] || Shield;
             return (
               <div
@@ -234,7 +243,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          {gameModes.map((mode) => (
+          {safeModes.map((mode) => (
             <div
               key={mode.id}
               className="flex flex-col items-center gap-2 rounded-xl border border-border/70 bg-[#121721] p-3 hover:border-primary/50 hover:bg-secondary/40 transition-all group"
