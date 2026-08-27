@@ -11,6 +11,7 @@ import {
   Gamepad2,
   Settings,
   History,
+  Users,
   ArrowLeft,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ export function AdminSidebar() {
   const navItems = [
     { label: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
     { label: "Applications", href: "/admin/applications", icon: FileSpreadsheet },
+    { label: "Staff & Permissions", href: "/admin/users", icon: Users },
     { label: "Question Builder", href: "/admin/questions", icon: ListPlus },
     { label: "Staff Positions", href: "/admin/positions", icon: ShieldAlert },
     { label: "Game Modes", href: "/admin/modes", icon: Gamepad2 },
