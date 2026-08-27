@@ -1,10 +1,19 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import { SessionUser, Role } from "@/types";
 
-const SESSION_COOKIE_NAME = "vortex_staff_session";
+export const SESSION_COOKIE_NAME = "vortex_staff_session";
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const SESSION_SECRET = process.env.SESSION_SECRET || "f8a42b109e8d47b7c25e8931a57c6312480bfde591283c7493217ba0451e9d12";
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
+
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: SESSION_MAX_AGE_SECONDS,
+};
 
 export interface SessionPayload {
   user: SessionUser;
@@ -78,18 +87,21 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 }
 
 /**
- * Write session cookie to response headers
+ * Set session cookie on a NextResponse object (MANDATORY for Route Handlers)
+ */
+export function attachSessionCookie(response: NextResponse, user: SessionUser): NextResponse {
+  const token = createSessionToken(user);
+  response.cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
+  return response;
+}
+
+/**
+ * Write session cookie to async cookies() store (for Server Actions)
  */
 export async function setSessionCookie(user: SessionUser): Promise<void> {
   const token = createSessionToken(user);
   const cookieStore = cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  });
+  cookieStore.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
 }
 
 /**

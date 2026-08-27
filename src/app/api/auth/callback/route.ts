@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleDiscordCallback } from "@/lib/auth/discord";
-import { setSessionCookie } from "@/lib/auth/session";
+import { attachSessionCookie } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/audit-logger";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const user = await handleDiscordCallback(code, state);
-    await setSessionCookie(user);
 
     await logAudit({
       actorId: user.id,
@@ -39,7 +38,9 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.redirect(`${baseUrl}/dashboard`);
+    const res = NextResponse.redirect(`${baseUrl}/dashboard`);
+    attachSessionCookie(res, user);
+    return res;
   } catch (err: any) {
     console.error("OAuth callback processing error:", err);
     return NextResponse.redirect(

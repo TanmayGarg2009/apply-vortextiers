@@ -95,15 +95,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         {/* CTA Buttons */}
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
           {user ? (
-            <Button
-              asChild
-              size="lg"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm px-8 h-12 gap-2 shadow-lg shadow-primary/25 font-mono"
-            >
-              <Link href="/dashboard">
-                Applicant Dashboard <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <Button
+                asChild
+                size="lg"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm px-8 h-12 gap-2 shadow-lg shadow-primary/25 font-mono"
+              >
+                <Link href="/apply">
+                  Start / Continue Application <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="h-12 border-border/80 bg-secondary/30 hover:bg-secondary/70 text-foreground font-bold font-mono"
+              >
+                <Link href="/dashboard">
+                  Applicant Dashboard
+                </Link>
+              </Button>
+            </div>
           ) : isApplicationsOpen ? (
             <Button
               asChild
