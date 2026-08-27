@@ -35,12 +35,9 @@ export default async function DashboardPage() {
 
   const applications = await dbService.getUserApplications(user.id);
   const settings = await dbService.getSettings();
+  const isApplicationsOpen = settings.applications_open !== false;
 
-  const activeDraft = applications.find((a) => a.status === "DRAFT");
-  const pendingApp = applications.find(
-    (a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW" || a.status === "NEEDS_CHANGES"
-  );
-  const canStartNew = !activeDraft && !pendingApp && settings.applications_open !== false;
+  const activeDraft = applications.find((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
 
   // Find latest Minecraft username used
   const latestIGN = applications[0]?.minecraftUsername || null;
@@ -59,23 +56,23 @@ export default async function DashboardPage() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1 font-mono">
-            Vortex Tiers candidate portal. Monitor recruitment progress and review decisions.
+            Vortex Tiers candidate portal. Monitor recruitment progress, edit drafts, and submit multiple role applications.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {canStartNew && (
-            <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold text-xs h-10 px-5 gap-2 shadow-lg shadow-primary/20">
-              <Link href="/apply">
-                <PlusCircle className="h-4 w-4" /> New Application
+        <div className="flex flex-wrap items-center gap-3">
+          {activeDraft && (
+            <Button asChild className="bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs h-10 px-5 gap-2 shadow-lg shadow-amber-500/20">
+              <Link href={`/apply/${activeDraft.id}`}>
+                <FileText className="h-4 w-4" /> Resume Draft
               </Link>
             </Button>
           )}
 
-          {activeDraft && (
-            <Button asChild className="bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs h-10 px-5 gap-2">
-              <Link href={`/apply/${activeDraft.id}`}>
-                <FileText className="h-4 w-4" /> Resume Draft
+          {isApplicationsOpen && (
+            <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold text-xs h-10 px-5 gap-2 shadow-lg shadow-primary/20">
+              <Link href="/apply?new=1">
+                <PlusCircle className="h-4 w-4" /> + New Application
               </Link>
             </Button>
           )}
@@ -148,7 +145,7 @@ export default async function DashboardPage() {
                 You haven't submitted a staff application for Vortex Tiers yet. Start a new submission to join the team.
               </p>
             </div>
-            {canStartNew && (
+            {isApplicationsOpen && (
               <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold text-xs">
                 <Link href="/apply">Start First Application</Link>
               </Button>

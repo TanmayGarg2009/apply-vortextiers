@@ -4,7 +4,15 @@ import dbService from "@/lib/db/store";
 
 export const dynamic = "force-dynamic";
 
-export default async function ApplyEntryPage() {
+interface ApplyEntryPageProps {
+  searchParams?: {
+    new?: string;
+    pos?: string;
+    mode?: string;
+  };
+}
+
+export default async function ApplyEntryPage({ searchParams }: ApplyEntryPageProps) {
   const user = await getSessionUser();
   if (!user) {
     redirect("/api/auth/login?redirect_to=/apply");
@@ -16,30 +24,27 @@ export default async function ApplyEntryPage() {
     redirect("/closed");
   }
 
-  // 2. Check for existing active draft
+  const isExplicitNew = searchParams?.new === "1" || searchParams?.new === "true";
   const userApps = await dbService.getUserApplications(user.id);
-  const activeDraft = userApps.find((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
-  if (activeDraft) {
-    redirect(`/apply/${activeDraft.id}`);
+
+  // 2. If user didn't explicitly request a new application, resume active draft if present
+  if (!isExplicitNew) {
+    const activeDraft = userApps.find((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
+    if (activeDraft) {
+      redirect(`/apply/${activeDraft.id}`);
+    }
   }
 
-  // 3. Check for existing submitted application
-  const pendingApp = userApps.find(
-    (a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW"
-  );
-  if (pendingApp) {
-    redirect(`/dashboard`);
-  }
-
-  // 4. Create new draft with default position
+  // 3. Create new application draft
   const positions = await dbService.getStaffPositions();
-  const defaultPosition = positions[0]?.id || "pos-tester";
+  const defaultPosition = searchParams?.pos || positions[0]?.id || "pos-tester";
 
   const newDraft = await dbService.createDraft({
     userId: user.id,
     discordId: user.discordId,
     email: user.email,
     positionId: defaultPosition,
+    modeId: searchParams?.mode || undefined,
   });
 
   redirect(`/apply/${newDraft.id}`);
