@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import dbService from "@/lib/db/store";
 
+export const dynamic = "force-dynamic";
+
 export default async function ApplyEntryPage() {
   const user = await getSessionUser();
   if (!user) {

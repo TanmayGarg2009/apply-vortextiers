@@ -97,6 +97,7 @@ export function EvidenceUploader({
       const sessionRes = await fetch("/api/applications/upload/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           applicationId,
           questionId,
@@ -128,6 +129,7 @@ export function EvidenceUploader({
             "x-upload-session-token": uploadSessionToken,
             "content-range": `bytes ${startByte}-${endByte - 1}/${totalBytes}`,
           },
+          credentials: "include",
           body: chunkBlob,
         });
 

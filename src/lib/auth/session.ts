@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 import { SessionUser, Role } from "@/types";
 
 export const SESSION_COOKIE_NAME = "vortex_staff_session";
-export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
-const SESSION_SECRET = process.env.SESSION_SECRET || "f8a42b109e8d47b7c25e8931a57c6312480bfde591283c7493217ba0451e9d12";
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days session persistence
+const SESSION_SECRET = (process.env.SESSION_SECRET || "f8a42b109e8d47b7c25e8931a57c6312480bfde591283c7493217ba0451e9d12").trim();
 
 export const SESSION_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -45,7 +45,12 @@ export function createSessionToken(user: SessionUser): string {
  */
 export function verifySessionToken(token: string): SessionUser | null {
   try {
-    const parts = token.split(".");
+    if (!token || typeof token !== "string") return null;
+    let cleanToken = token.trim();
+    if (cleanToken.startsWith('"') && cleanToken.endsWith('"')) {
+      cleanToken = cleanToken.slice(1, -1);
+    }
+    const parts = cleanToken.split(".");
     if (parts.length !== 2) return null;
 
     const [encodedPayload, signature] = parts;
@@ -91,7 +96,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
  */
 export function attachSessionCookie(response: NextResponse, user: SessionUser): NextResponse {
   const token = createSessionToken(user);
-  response.cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
+  response.cookies.set({
+    name: SESSION_COOKIE_NAME,
+    value: token,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  });
   return response;
 }
 

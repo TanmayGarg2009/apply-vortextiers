@@ -5,6 +5,27 @@ import { logAudit } from "@/lib/audit/audit-logger";
 
 export const dynamic = "force-dynamic";
 
+function getCanonicalDestination(targetPath: string, req: NextRequest): string {
+  const target = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
+  
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL.trim();
+    if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+      baseUrl = `https://${baseUrl}`;
+    }
+    if (baseUrl.startsWith("http://") && !baseUrl.includes("localhost")) {
+      baseUrl = baseUrl.replace("http://", "https://");
+    }
+    return `${baseUrl.replace(/\/$/, "")}${target}`;
+  }
+
+  const parsed = new URL(target, req.url);
+  if (process.env.NODE_ENV === "production" && !parsed.host.includes("localhost")) {
+    parsed.protocol = "https:";
+  }
+  return parsed.toString();
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -15,12 +36,12 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error("Discord OAuth returned error:", error, errorDescription);
-    const errUrl = new URL(`/?auth_error=${encodeURIComponent(errorDescription || error)}`, req.url).toString();
+    const errUrl = getCanonicalDestination(`/?auth_error=${encodeURIComponent(errorDescription || error)}`, req);
     return NextResponse.redirect(errUrl);
   }
 
   if (!code) {
-    const errUrl = new URL("/?auth_error=Missing+OAuth+authorization+code", req.url).toString();
+    const errUrl = getCanonicalDestination("/?auth_error=Missing+OAuth+authorization+code", req);
     return NextResponse.redirect(errUrl);
   }
 
@@ -54,17 +75,17 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const destinationUrl = new URL(targetPath, req.url).toString();
+    const destinationUrl = getCanonicalDestination(targetPath, req);
     const res = NextResponse.redirect(destinationUrl);
     attachSessionCookie(res, user);
     res.cookies.delete("vortex_oauth_state");
     return res;
   } catch (err: any) {
     console.error("OAuth callback processing error:", err);
-    const errUrl = new URL(
+    const errUrl = getCanonicalDestination(
       `/?auth_error=${encodeURIComponent(err.message || "Authentication failed")}`,
-      req.url
-    ).toString();
+      req
+    );
     return NextResponse.redirect(errUrl);
   }
 }

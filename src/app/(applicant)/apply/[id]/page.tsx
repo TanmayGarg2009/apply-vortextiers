@@ -20,6 +20,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function ApplicationDetailPage({
   params,
 }: {
@@ -27,7 +29,7 @@ export default async function ApplicationDetailPage({
 }) {
   const user = await getSessionUser();
   if (!user) {
-    redirect("/api/auth/login");
+    redirect(`/api/auth/login?redirect_to=/apply/${params.id}`);
   }
 
   const application = await dbService.getApplicationById(params.id);
