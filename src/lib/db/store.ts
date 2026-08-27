@@ -258,11 +258,16 @@ export const dbService = {
     const cached = getCached<GameModeData[]>("gamemodes:all");
     if (cached) return cached;
 
-    let result: GameModeData[];
+    let result: GameModeData[] | null = null;
     if (await canConnectToDatabase()) {
-      const modes = await prisma.gameMode.findMany({ orderBy: { order: "asc" } });
-      result = modes as any;
-    } else {
+      try {
+        const modes = await prisma.gameMode.findMany({ orderBy: { order: "asc" } });
+        result = modes as any;
+      } catch (err) {
+        console.warn("Prisma getGameModes error, using memory fallback:", err);
+      }
+    }
+    if (!result) {
       result = Array.from(memoryStore.modes.values()).sort((a, b) => a.order - b.order);
     }
     setCached("gamemodes:all", result, 60000);
@@ -272,7 +277,11 @@ export const dbService = {
   async createGameMode(data: Partial<GameModeData>): Promise<GameModeData> {
     invalidateDbCache("gamemodes");
     if (await canConnectToDatabase()) {
-      return (await prisma.gameMode.create({ data: data as any })) as any;
+      try {
+        return (await prisma.gameMode.create({ data: data as any })) as any;
+      } catch (err) {
+        console.error("Prisma createGameMode error:", err);
+      }
     }
     const id = `mode-${Date.now()}`;
     const mode = { id, enabled: true, order: memoryStore.modes.size + 1, ...data };
@@ -283,7 +292,11 @@ export const dbService = {
   async updateGameMode(id: string, data: Partial<GameModeData>): Promise<GameModeData> {
     invalidateDbCache("gamemodes");
     if (await canConnectToDatabase()) {
-      return (await prisma.gameMode.update({ where: { id }, data: data as any })) as any;
+      try {
+        return (await prisma.gameMode.update({ where: { id }, data: data as any })) as any;
+      } catch (err) {
+        console.error("Prisma updateGameMode error:", err);
+      }
     }
     const mode = { ...memoryStore.modes.get(id), ...data };
     memoryStore.modes.set(id, mode);
@@ -293,8 +306,12 @@ export const dbService = {
   async deleteGameMode(id: string): Promise<void> {
     invalidateDbCache("gamemodes");
     if (await canConnectToDatabase()) {
-      await prisma.gameMode.delete({ where: { id } });
-      return;
+      try {
+        await prisma.gameMode.delete({ where: { id } });
+        return;
+      } catch (err) {
+        console.error("Prisma deleteGameMode error:", err);
+      }
     }
     memoryStore.modes.delete(id);
   },
@@ -304,11 +321,16 @@ export const dbService = {
     const cached = getCached<StaffPositionData[]>("positions:all");
     if (cached) return cached;
 
-    let result: StaffPositionData[];
+    let result: StaffPositionData[] | null = null;
     if (await canConnectToDatabase()) {
-      const positions = await prisma.staffPosition.findMany({ orderBy: { order: "asc" } });
-      result = positions as any;
-    } else {
+      try {
+        const positions = await prisma.staffPosition.findMany({ orderBy: { order: "asc" } });
+        result = positions as any;
+      } catch (err) {
+        console.warn("Prisma getStaffPositions error, using memory fallback:", err);
+      }
+    }
+    if (!result) {
       result = Array.from(memoryStore.positions.values()).sort((a, b) => a.order - b.order);
     }
     setCached("positions:all", result, 60000);
@@ -318,7 +340,11 @@ export const dbService = {
   async createStaffPosition(data: Partial<StaffPositionData>): Promise<StaffPositionData> {
     invalidateDbCache("positions");
     if (await canConnectToDatabase()) {
-      return (await prisma.staffPosition.create({ data: data as any })) as any;
+      try {
+        return (await prisma.staffPosition.create({ data: data as any })) as any;
+      } catch (err) {
+        console.error("Prisma createStaffPosition error:", err);
+      }
     }
     const id = `pos-${Date.now()}`;
     const pos = { id, enabled: true, order: memoryStore.positions.size + 1, ...data };
@@ -329,7 +355,11 @@ export const dbService = {
   async updateStaffPosition(id: string, data: Partial<StaffPositionData>): Promise<StaffPositionData> {
     invalidateDbCache("positions");
     if (await canConnectToDatabase()) {
-      return (await prisma.staffPosition.update({ where: { id }, data: data as any })) as any;
+      try {
+        return (await prisma.staffPosition.update({ where: { id }, data: data as any })) as any;
+      } catch (err) {
+        console.error("Prisma updateStaffPosition error:", err);
+      }
     }
     const pos = { ...memoryStore.positions.get(id), ...data };
     memoryStore.positions.set(id, pos);
@@ -339,8 +369,12 @@ export const dbService = {
   async deleteStaffPosition(id: string): Promise<void> {
     invalidateDbCache("positions");
     if (await canConnectToDatabase()) {
-      await prisma.staffPosition.delete({ where: { id } });
-      return;
+      try {
+        await prisma.staffPosition.delete({ where: { id } });
+        return;
+      } catch (err) {
+        console.error("Prisma deleteStaffPosition error:", err);
+      }
     }
     memoryStore.positions.delete(id);
   },
@@ -351,29 +385,34 @@ export const dbService = {
     const cached = getCached<QuestionData[]>(cacheKey);
     if (cached) return cached;
 
-    let result: QuestionData[];
+    let result: QuestionData[] | null = null;
     if (await canConnectToDatabase()) {
-      const where: any = {};
-      if (filters?.enabledOnly) where.enabled = true;
-      if (filters?.positionId) {
-        where.OR = [{ positionId: null }, { positionId: filters.positionId }];
+      try {
+        const where: any = {};
+        if (filters?.enabledOnly) where.enabled = true;
+        if (filters?.positionId) {
+          where.OR = [{ positionId: null }, { positionId: filters.positionId }];
+        }
+        if (filters?.modeId) {
+          where.AND = [
+            ...(where.AND || []),
+            { OR: [{ modeId: null }, { modeId: filters.modeId }] },
+          ];
+        }
+        const questions = await prisma.question.findMany({
+          where,
+          orderBy: { order: "asc" },
+        });
+        result = questions.map((q) => ({
+          ...q,
+          options: q.options ? (typeof q.options === "string" ? JSON.parse(q.options) : q.options) : null,
+          allowedFileTypes: q.allowedFileTypes ? (typeof q.allowedFileTypes === "string" ? JSON.parse(q.allowedFileTypes) : q.allowedFileTypes) : null,
+        })) as any;
+      } catch (err) {
+        console.warn("Prisma getQuestions error, using memory fallback:", err);
       }
-      if (filters?.modeId) {
-        where.AND = [
-          ...(where.AND || []),
-          { OR: [{ modeId: null }, { modeId: filters.modeId }] },
-        ];
-      }
-      const questions = await prisma.question.findMany({
-        where,
-        orderBy: { order: "asc" },
-      });
-      result = questions.map((q) => ({
-        ...q,
-        options: q.options ? (typeof q.options === "string" ? JSON.parse(q.options) : q.options) : null,
-        allowedFileTypes: q.allowedFileTypes ? (typeof q.allowedFileTypes === "string" ? JSON.parse(q.allowedFileTypes) : q.allowedFileTypes) : null,
-      })) as any;
-    } else {
+    }
+    if (!result) {
       let list = Array.from(memoryStore.questions.values());
       if (filters?.enabledOnly) {
         list = list.filter((q) => q.enabled);
@@ -1061,12 +1100,19 @@ export const dbService = {
     if (cached) return cached;
 
     const map: Record<string, any> = {};
+    let dbSuccess = false;
     if (await canConnectToDatabase()) {
-      const settings = await prisma.appSetting.findMany();
-      settings.forEach((s) => {
-        map[s.key] = s.value;
-      });
-    } else {
+      try {
+        const settings = await prisma.appSetting.findMany();
+        settings.forEach((s) => {
+          map[s.key] = s.value;
+        });
+        dbSuccess = true;
+      } catch (err) {
+        console.warn("Prisma getSettings error, using memory fallback:", err);
+      }
+    }
+    if (!dbSuccess) {
       memoryStore.settings.forEach((s, k) => {
         map[k] = s.value;
       });
@@ -1079,12 +1125,16 @@ export const dbService = {
   async updateSetting(key: string, value: any, updatedById?: string) {
     invalidateDbCache("settings");
     if (await canConnectToDatabase()) {
-      await prisma.appSetting.upsert({
-        where: { key },
-        update: { value, updatedById },
-        create: { key, value, updatedById },
-      });
-      return;
+      try {
+        await prisma.appSetting.upsert({
+          where: { key },
+          update: { value, updatedById },
+          create: { key, value, updatedById },
+        });
+        return;
+      } catch (err) {
+        console.error("Prisma updateSetting error:", err);
+      }
     }
 
     memoryStore.settings.set(key, { key, value, updatedById, updatedAt: new Date() });
@@ -1093,31 +1143,35 @@ export const dbService = {
   // --- Metrics ---
   async getMetrics() {
     if (await canConnectToDatabase()) {
-      const counts = await prisma.application.groupBy({
-        by: ["status"],
-        _count: { _all: true },
-      });
+      try {
+        const counts = await prisma.application.groupBy({
+          by: ["status"],
+          _count: { _all: true },
+        });
 
-      const map: Record<string, number> = {
-        SUBMITTED: 0,
-        UNDER_REVIEW: 0,
-        ACCEPTED: 0,
-        REJECTED: 0,
-      };
-      let total = 0;
+        const map: Record<string, number> = {
+          SUBMITTED: 0,
+          UNDER_REVIEW: 0,
+          ACCEPTED: 0,
+          REJECTED: 0,
+        };
+        let total = 0;
 
-      counts.forEach((c) => {
-        map[c.status] = c._count._all;
-        total += c._count._all;
-      });
+        counts.forEach((c) => {
+          map[c.status] = c._count._all;
+          total += c._count._all;
+        });
 
-      return {
-        pending: map.SUBMITTED || 0,
-        underReview: map.UNDER_REVIEW || 0,
-        accepted: map.ACCEPTED || 0,
-        rejected: map.REJECTED || 0,
-        total,
-      };
+        return {
+          pending: map.SUBMITTED || 0,
+          underReview: map.UNDER_REVIEW || 0,
+          accepted: map.ACCEPTED || 0,
+          rejected: map.REJECTED || 0,
+          total,
+        };
+      } catch (err) {
+        console.warn("Prisma getMetrics error, using memory fallback:", err);
+      }
     }
 
     const all = Array.from(memoryStore.applications.values());
