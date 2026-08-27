@@ -1,8 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSessionUser, setSessionCookie } from "@/lib/auth/session";
-import { handleDiscordCallback } from "@/lib/auth/discord";
+import { getSessionUser } from "@/lib/auth/session";
 import dbService from "@/lib/db/store";
 import { Button } from "@/components/ui/button";
 import { ModeBadge } from "@/components/shared/ModeBadge";
@@ -33,16 +32,12 @@ interface HomePageProps {
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  // If Discord redirected directly to root domain with ?code=...
+  // If Discord redirected directly to root domain with ?code=..., forward to the API Route Handler where cookies can be set
   if (searchParams?.code) {
-    try {
-      const authUser = await handleDiscordCallback(searchParams.code, searchParams.state);
-      await setSessionCookie(authUser);
-      redirect("/dashboard");
-    } catch (err: any) {
-      console.error("Home page direct OAuth error:", err);
-      redirect(`/?auth_error=${encodeURIComponent(err.message || "Authentication failed")}`);
-    }
+    const callbackUrl = `/api/auth/callback?code=${encodeURIComponent(searchParams.code)}${
+      searchParams.state ? `&state=${encodeURIComponent(searchParams.state)}` : ""
+    }`;
+    redirect(callbackUrl);
   }
 
   const user = await getSessionUser();
