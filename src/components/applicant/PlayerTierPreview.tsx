@@ -1,17 +1,18 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { MinecraftAvatar } from "@/components/shared/MinecraftAvatar";
 import { TierBadge } from "@/components/shared/TierBadge";
 import { Loader2, CheckCircle2, Trophy, Globe, UserCheck, Sparkles } from "lucide-react";
+import { findPlayerByUsername, PlayerRecord } from "@/lib/players";
 
 interface PlayerTierPreviewProps {
   username: string;
 }
 
-export function PlayerTierPreview({ username }: PlayerTierPreviewProps) {
+export const PlayerTierPreview = memo(function PlayerTierPreview({ username }: PlayerTierPreviewProps) {
   const [loading, setLoading] = useState(false);
-  const [playerData, setPlayerData] = useState<any | null>(null);
+  const [playerData, setPlayerData] = useState<PlayerRecord | null>(null);
 
   useEffect(() => {
     if (!username || username.length < 3) {
@@ -19,27 +20,25 @@ export function PlayerTierPreview({ username }: PlayerTierPreviewProps) {
       return;
     }
 
+    let active = true;
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch("https://api.vortextiers.xyz/players-api");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.players)) {
-            const found = data.players.find(
-              (p: any) => p.username.toLowerCase() === username.toLowerCase()
-            );
-            setPlayerData(found || null);
-          }
+        const found = await findPlayerByUsername(username);
+        if (active) {
+          setPlayerData(found);
         }
       } catch (err) {
         console.error("Error looking up player tiers:", err);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
-    }, 350);
+    }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [username]);
 
   if (!username || username.length < 3) return null;
@@ -127,4 +126,4 @@ export function PlayerTierPreview({ username }: PlayerTierPreviewProps) {
       </div>
     </div>
   );
-}
+});

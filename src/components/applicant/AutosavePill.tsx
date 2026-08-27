@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { Check, Loader2, AlertCircle, Cloud } from "lucide-react";
 
 interface AutosavePillProps {
@@ -6,7 +6,7 @@ interface AutosavePillProps {
   lastSavedAt?: Date | null;
 }
 
-export function AutosavePill({ status, lastSavedAt }: AutosavePillProps) {
+export const AutosavePill = memo(function AutosavePill({ status, lastSavedAt }: AutosavePillProps) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-3 py-1 text-xs text-muted-foreground font-mono">
       {status === "saving" && (
@@ -37,4 +37,4 @@ export function AutosavePill({ status, lastSavedAt }: AutosavePillProps) {
       )}
     </div>
   );
-}
+});

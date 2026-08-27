@@ -48,26 +48,30 @@ export async function POST(
     });
 
     // Trigger transactional email for Accept / Reject decisions
-    if (validated.status === "ACCEPTED") {
-      sendApplicationEmail({
-        applicationId: updated.id,
-        recipientEmail: updated.email,
-        applicantName: updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant",
-        positionName: updated.position?.name || "Staff Position",
-        modeName: updated.mode?.name,
-        type: "APPLICATION_ACCEPTED",
-        acceptanceMessage: validated.acceptanceMessage,
-      }).catch((err) => console.error("Async acceptance email error:", err));
-    } else if (validated.status === "REJECTED") {
-      sendApplicationEmail({
-        applicationId: updated.id,
-        recipientEmail: updated.email,
-        applicantName: updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant",
-        positionName: updated.position?.name || "Staff Position",
-        modeName: updated.mode?.name,
-        type: "APPLICATION_REJECTED",
-        rejectionReason: validated.rejectionReason,
-      }).catch((err) => console.error("Async rejection email error:", err));
+    try {
+      if (validated.status === "ACCEPTED") {
+        await sendApplicationEmail({
+          applicationId: updated.id,
+          recipientEmail: updated.email,
+          applicantName: updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant",
+          positionName: updated.position?.name || "Staff Position",
+          modeName: updated.mode?.name,
+          type: "APPLICATION_ACCEPTED",
+          acceptanceMessage: validated.acceptanceMessage,
+        });
+      } else if (validated.status === "REJECTED") {
+        await sendApplicationEmail({
+          applicationId: updated.id,
+          recipientEmail: updated.email,
+          applicantName: updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant",
+          positionName: updated.position?.name || "Staff Position",
+          modeName: updated.mode?.name,
+          type: "APPLICATION_REJECTED",
+          rejectionReason: validated.rejectionReason,
+        });
+      }
+    } catch (err) {
+      console.error("Decision email dispatch error:", err);
     }
 
     return NextResponse.json({

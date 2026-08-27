@@ -20,10 +20,12 @@ import {
 } from "lucide-react";
 
 export default async function AdminOverviewPage() {
-  const metrics = await dbService.getMetrics();
-  const recentApps = await dbService.searchApplications({ limit: 6 });
-  const positions = await dbService.getStaffPositions();
-  const gameModes = await dbService.getGameModes();
+  const [metrics, recentApps, positions, gameModes] = await Promise.all([
+    dbService.getMetrics(),
+    dbService.searchApplications({ limit: 6 }),
+    dbService.getStaffPositions(),
+    dbService.getGameModes(),
+  ]);
 
   const totalDecided = metrics.accepted + metrics.rejected;
   const acceptanceRate =

@@ -9,9 +9,11 @@ export default async function AdminQuestionsPage() {
   if (!user) redirect("/api/auth/login");
   if (user.role !== "ADMIN") redirect("/admin");
 
-  const questions = await dbService.getQuestions();
-  const positions = await dbService.getStaffPositions();
-  const gameModes = await dbService.getGameModes();
+  const [questions, positions, gameModes] = await Promise.all([
+    dbService.getQuestions(),
+    dbService.getStaffPositions(),
+    dbService.getGameModes(),
+  ]);
 
   return (
     <QuestionBuilder

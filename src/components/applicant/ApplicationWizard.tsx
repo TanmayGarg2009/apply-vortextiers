@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ApplicationData,
@@ -110,16 +110,28 @@ export function ApplicationWizard({
   // Debounced Autosave Timer
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const triggerAutosave = () => {
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
+
+  const triggerAutosave = (
+    currentAnswers = answers,
+    currentUsername = minecraftUsername,
+    currentPosId = positionId,
+    currentModeId = modeId
+  ) => {
     // 1. Immediately persist to localStorage
     try {
       localStorage.setItem(
         `vortex_draft_${user.id}_${initialApplication.id}`,
         JSON.stringify({
-          positionId,
-          modeId,
-          minecraftUsername,
-          answers,
+          positionId: currentPosId,
+          modeId: currentModeId,
+          minecraftUsername: currentUsername,
+          answers: currentAnswers,
           updatedAt: new Date().toISOString(),
         })
       );
@@ -130,7 +142,7 @@ export function ApplicationWizard({
     setAutosaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        const payloadAnswers = Object.entries(answers).map(([qId, data]) => ({
+        const payloadAnswers = Object.entries(currentAnswers).map(([qId, data]) => ({
           questionId: qId,
           value: data.value,
           selectedOptions: data.selectedOptions,
@@ -141,9 +153,9 @@ export function ApplicationWizard({
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            positionId,
-            modeId: modeId || null,
-            minecraftUsername: minecraftUsername || null,
+            positionId: currentPosId,
+            modeId: currentModeId || null,
+            minecraftUsername: currentUsername || null,
             answers: payloadAnswers,
           }),
         });
@@ -159,18 +171,21 @@ export function ApplicationWizard({
   };
 
   // Filter applicable questions for currently selected position & game mode
-  const applicableQuestions = questions.filter((q) => {
-    if (q.positionId && q.positionId !== positionId) return false;
-    if (q.modeId && q.modeId !== modeId) return false;
-    return true;
-  });
+  const applicableQuestions = useMemo(() => {
+    return questions.filter((q) => {
+      if (q.positionId && q.positionId !== positionId) return false;
+      if (q.modeId && q.modeId !== modeId) return false;
+      return true;
+    });
+  }, [questions, positionId, modeId]);
 
   const handleAnswerChange = (questionId: string, value: string, selectedOptions?: string[]) => {
-    setAnswers((prev) => ({
-      ...prev,
+    const updated = {
+      ...answers,
       [questionId]: { value, selectedOptions },
-    }));
-    triggerAutosave();
+    };
+    setAnswers(updated);
+    triggerAutosave(updated);
   };
 
   const handleUploadSuccess = (file: UploadData) => {

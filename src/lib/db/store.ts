@@ -1093,14 +1093,31 @@ export const dbService = {
   // --- Metrics ---
   async getMetrics() {
     if (await canConnectToDatabase()) {
-      const [pending, underReview, accepted, rejected, total] = await Promise.all([
-        prisma.application.count({ where: { status: "SUBMITTED" } }),
-        prisma.application.count({ where: { status: "UNDER_REVIEW" } }),
-        prisma.application.count({ where: { status: "ACCEPTED" } }),
-        prisma.application.count({ where: { status: "REJECTED" } }),
-        prisma.application.count(),
-      ]);
-      return { pending, underReview, accepted, rejected, total };
+      const counts = await prisma.application.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      });
+
+      const map: Record<string, number> = {
+        SUBMITTED: 0,
+        UNDER_REVIEW: 0,
+        ACCEPTED: 0,
+        REJECTED: 0,
+      };
+      let total = 0;
+
+      counts.forEach((c) => {
+        map[c.status] = c._count._all;
+        total += c._count._all;
+      });
+
+      return {
+        pending: map.SUBMITTED || 0,
+        underReview: map.UNDER_REVIEW || 0,
+        accepted: map.ACCEPTED || 0,
+        rejected: map.REJECTED || 0,
+        total,
+      };
     }
 
     const all = Array.from(memoryStore.applications.values());

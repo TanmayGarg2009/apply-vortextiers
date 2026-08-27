@@ -49,6 +49,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(errUrl);
   }
 
+  // 1. Verify OAuth state cookie against CSRF
+  const savedState = req.cookies.get("vortex_oauth_state")?.value;
+  if (savedState && state && savedState !== state) {
+    console.warn("OAuth state mismatch: possible CSRF attempt.");
+    const errUrl = getCanonicalDestination("/?auth_error=OAuth+security+state+mismatch.+Please+try+logging+in+again.", req);
+    return NextResponse.redirect(errUrl);
+  }
+
   // Parse target destination from state
   let targetPath = "/dashboard";
   if (state) {

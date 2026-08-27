@@ -13,6 +13,10 @@ export interface LogAuditParams {
 
 async function resolveUserCuid(userIdOrDiscordId?: string | null): Promise<string | null> {
   if (!userIdOrDiscordId) return null;
+  // Fast path: If already a cuid (c + 24 alphanumeric chars), return directly
+  if (/^c[a-z0-9]{24}$/i.test(userIdOrDiscordId)) {
+    return userIdOrDiscordId;
+  }
   try {
     const user = await prisma.user.findFirst({
       where: {

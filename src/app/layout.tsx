@@ -7,8 +7,6 @@ import { Footer } from "@/components/layout/Footer";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
-export const dynamic = "force-dynamic";
-
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",

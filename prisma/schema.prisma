@@ -25,10 +25,8 @@ model User {
   auditLogs         AuditLog[]
   statusChanges     StatusHistory[]
 
-  @@index([discordId])
   @@index([role])
   @@index([email])
-  @@index([discordId], map: "idx_user_discord")
 }
 
 model StaffPosition {
@@ -92,6 +90,7 @@ model Question {
   uploads          Upload[]
 
   @@index([positionId, modeId, enabled, order])
+  @@index([enabled, order])
 }
 
 model Application {
@@ -123,18 +122,12 @@ model Application {
   statusHistory       StatusHistory[]
   uploads             Upload[]
 
-  @@index([status])
-  @@index([userId])
-  @@index([discordId])
-  @@index([positionId])
-  @@index([modeId])
-  @@index([submittedAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([positionId, createdAt(sort: Desc)])
+  @@index([modeId, createdAt(sort: Desc)])
+  @@index([submittedAt(sort: Desc)])
   @@index([reviewedById])
-  @@index([createdAt])
-  @@index([createdAt(sort: Desc)], map: "idx_application_created")
-  @@index([positionId], map: "idx_application_position")
-  @@index([status], map: "idx_application_status")
-  @@index([userId], map: "idx_application_user")
 }
 
 model Answer {
@@ -150,9 +143,7 @@ model Answer {
   question         Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([applicationId, questionId])
-  @@index([applicationId])
   @@index([questionId])
-  @@index([applicationId], map: "idx_answer_application")
 }
 
 model Upload {
@@ -163,7 +154,7 @@ model Upload {
   safeFilename            String
   mimeType                String
   sizeBytes               Int
-  googleDriveFileId       String
+  googleDriveFileId       String         @unique
   googleDriveViewLink     String?
   googleDriveDownloadLink String?
   category                UploadCategory @default(IMAGE)
@@ -173,7 +164,6 @@ model Upload {
 
   @@index([applicationId])
   @@index([questionId])
-  @@index([applicationId], map: "idx_upload_application")
 }
 
 model AdminNote {
@@ -186,9 +176,8 @@ model AdminNote {
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   author        User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  @@index([applicationId])
+  @@index([applicationId, createdAt(sort: Desc)])
   @@index([authorId])
-  @@index([applicationId], map: "idx_admin_note_application")
 }
 
 model StatusHistory {
@@ -203,8 +192,7 @@ model StatusHistory {
   application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   changedBy     User?             @relation(fields: [changedById], references: [id], onDelete: SetNull)
 
-  @@index([applicationId, createdAt])
-  @@index([applicationId], map: "idx_status_history_application")
+  @@index([applicationId, createdAt(sort: Desc)])
 }
 
 model EmailEvent {
@@ -225,7 +213,6 @@ model EmailEvent {
 
   @@index([applicationId, type, status])
   @@index([createdAt])
-  @@index([applicationId], map: "idx_email_event_application")
 }
 
 model AuditLog {
@@ -243,15 +230,15 @@ model AuditLog {
   @@index([actorId])
   @@index([action])
   @@index([targetType, targetId])
-  @@index([createdAt])
+  @@index([createdAt(sort: Desc)])
 }
 
 model AppSetting {
-  key         String   @id
+  id          String   @id @default(cuid())
+  key         String   @unique
   value       Json
-  description String?
-  updatedAt   DateTime @updatedAt
   updatedById String?
+  updatedAt   DateTime @updatedAt
 }
 
 enum Role {
@@ -264,24 +251,21 @@ enum ApplicationStatus {
   DRAFT
   SUBMITTED
   UNDER_REVIEW
+  NEEDS_CHANGES
   ACCEPTED
   REJECTED
   WITHDRAWN
-  NEEDS_CHANGES
 }
 
 enum QuestionType {
   SHORT_TEXT
   PARAGRAPH
   MULTIPLE_CHOICE
-  MULTIPLE_SELECT
-  NUMBER
-  URL
-  FILE
-  IMAGE
-  VIDEO
-  MINECRAFT_USERNAME
-  DISCORD_USERNAME
+  CHECKBOXES
+  DROPDOWN
+  NUMERIC
+  FILE_UPLOAD
+  MINECRAFT_IGN
 }
 
 enum UploadCategory {
@@ -295,6 +279,7 @@ enum EmailType {
   APPLICATION_SUBMITTED
   APPLICATION_ACCEPTED
   APPLICATION_REJECTED
+  STAFF_NOTIFICATION
 }
 
 enum EmailStatus {

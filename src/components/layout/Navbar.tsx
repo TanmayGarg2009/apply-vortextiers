@@ -20,6 +20,7 @@ import {
   User,
   Menu,
 } from "lucide-react";
+import { searchPlayers } from "@/lib/players";
 
 interface NavbarProps {
   user?: SessionUser | null;
@@ -35,9 +36,6 @@ const DISCORD_SERVERS = [
   { label: "Axe", icon: "/icons/axe.svg", url: "https://discord.gg/r458Sx54kF" },
   { label: "Mace", icon: "/icons/mace.svg", url: "https://discord.gg/NjWpNsK96K" },
 ];
-
-let cachedPlayersList: any[] | null = null;
-let lastPlayersFetchTime = 0;
 
 export function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
@@ -105,7 +103,7 @@ export function Navbar({ user }: NavbarProps) {
     };
   }, []);
 
-  // Search players on Vortex Tiers API with local caching for instant response
+  // Search players on Vortex Tiers API with shared caching for instant response
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -113,41 +111,25 @@ export function Navbar({ user }: NavbarProps) {
       return;
     }
 
+    let active = true;
     const timer = setTimeout(async () => {
-      const q = searchQuery.toLowerCase().trim();
-      const now = Date.now();
-
-      if (cachedPlayersList && now - lastPlayersFetchTime < 60000) {
-        const filtered = cachedPlayersList.filter((p: any) =>
-          p.username?.toLowerCase().includes(q)
-        );
-        setSearchResults(filtered.slice(0, 6));
-        setSearching(false);
-        return;
-      }
-
       setSearching(true);
       try {
-        const res = await fetch("https://api.vortextiers.xyz/players-api");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.players)) {
-            cachedPlayersList = data.players;
-            lastPlayersFetchTime = now;
-            const filtered = data.players.filter((p: any) =>
-              p.username?.toLowerCase().includes(q)
-            );
-            setSearchResults(filtered.slice(0, 6));
-          }
+        const results = await searchPlayers(searchQuery, 6);
+        if (active) {
+          setSearchResults(results);
         }
       } catch (err) {
         console.error("Error searching players:", err);
       } finally {
-        setSearching(false);
+        if (active) setSearching(false);
       }
     }, 150);
 
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [searchQuery]);
 
   const isAdmin = user && (user.role === "ADMIN" || user.role === "REVIEWER");

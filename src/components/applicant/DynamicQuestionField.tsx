@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import { QuestionData } from "@/types";
 import { MinecraftAvatar } from "@/components/shared/MinecraftAvatar";
 import { Video, Image, FileText, Link2, UploadCloud } from "lucide-react";
@@ -13,7 +13,7 @@ interface DynamicQuestionFieldProps {
   error?: string;
 }
 
-export function DynamicQuestionField({
+export const DynamicQuestionField = memo(function DynamicQuestionField({
   question,
   value = "",
   selectedOptions = [],
@@ -222,4 +222,4 @@ export function DynamicQuestionField({
       )}
     </div>
   );
-}
+});

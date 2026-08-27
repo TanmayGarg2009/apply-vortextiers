@@ -72,15 +72,19 @@ export async function POST(
       },
     });
 
-    // Send confirmation email asynchronously (does not block or roll back submission if email fails)
-    sendApplicationEmail({
-      applicationId: submittedApp.id,
-      recipientEmail: submittedApp.email,
-      applicantName: user.discordGlobalName || user.discordUsername,
-      positionName: submittedApp.position?.name || "Staff Position",
-      modeName: submittedApp.mode?.name,
-      type: "APPLICATION_SUBMITTED",
-    }).catch((err) => console.error("Async confirmation email error:", err));
+    // Send confirmation email (does not roll back submission if email fails)
+    try {
+      await sendApplicationEmail({
+        applicationId: submittedApp.id,
+        recipientEmail: submittedApp.email,
+        applicantName: user.discordGlobalName || user.discordUsername,
+        positionName: submittedApp.position?.name || "Staff Position",
+        modeName: submittedApp.mode?.name,
+        type: "APPLICATION_SUBMITTED",
+      });
+    } catch (err) {
+      console.error("Confirmation email dispatch error:", err);
+    }
 
     return NextResponse.json({
       success: true,

@@ -36,7 +36,8 @@ export type UploadCategory = "IMAGE" | "VIDEO" | "DOCUMENT" | "OTHER";
 export type EmailType =
   | "APPLICATION_SUBMITTED"
   | "APPLICATION_ACCEPTED"
-  | "APPLICATION_REJECTED";
+  | "APPLICATION_REJECTED"
+  | "STAFF_NOTIFICATION";
 
 export type EmailStatus = "PENDING" | "SENT" | "FAILED";
 

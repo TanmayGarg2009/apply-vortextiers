@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, checkApplicationAccess } from "@/lib/auth/rbac";
 import dbService from "@/lib/db/store";
 import { createDriveResumableUploadSession, categorizeMimeType } from "@/lib/drive/google-drive";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 const ALLOWED_MIME_TYPES = [
   "image/png",
@@ -16,6 +17,9 @@ const ALLOWED_MIME_TYPES = [
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth();
+    const rateLimitError = enforceRateLimit(req, "PUBLIC_API", user.id);
+    if (rateLimitError) return rateLimitError;
+
     const body = await req.json();
 
     const { applicationId, filename, mimeType, sizeBytes, questionId } = body;
