@@ -3,10 +3,15 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/db/prisma";
 import { SessionUser, Role } from "@/types";
 
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "1422296301768540240";
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || "e_H7F75Zti_ErbQfMi8WMzFSAiTCxySbM5e";
-const DISCORD_REDIRECT_URI =
-  process.env.DISCORD_REDIRECT_URI || "https://apply.vortextiers.xyz";
+const getDiscordClientId = () =>
+  (process.env.DISCORD_CLIENT_ID || "1422296301768540240").trim().replace(/^["']|["']$/g, "");
+
+const getDiscordClientSecret = () =>
+  (process.env.DISCORD_CLIENT_SECRET || "e_H7F75Zti_ErbQfMi8WMzFSAiTCxySbM5e").trim().replace(/^["']|["']$/g, "");
+
+const getDiscordRedirectUri = () =>
+  (process.env.DISCORD_REDIRECT_URI || "https://apply.vortextiers.xyz").trim().replace(/^["']|["']$/g, "");
+
 const OAUTH_STATE_COOKIE_NAME = "vortex_oauth_state";
 
 export interface DiscordUserResponse {
@@ -23,7 +28,10 @@ export interface DiscordUserResponse {
  * Generate Discord OAuth2 URL with CSRF state token stored in HttpOnly cookie
  */
 export function getDiscordAuthUrl(): string {
+  const clientId = getDiscordClientId();
+  const redirectUri = getDiscordRedirectUri();
   const state = crypto.randomBytes(24).toString("hex");
+
   const cookieStore = cookies();
   cookieStore.set(OAUTH_STATE_COOKIE_NAME, state, {
     httpOnly: true,
@@ -34,9 +42,9 @@ export function getDiscordAuthUrl(): string {
   });
 
   const params = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
+    client_id: clientId,
     response_type: "code",
-    redirect_uri: DISCORD_REDIRECT_URI,
+    redirect_uri: redirectUri,
     scope: "identify email",
     state,
     prompt: "consent",
@@ -52,21 +60,24 @@ export async function handleDiscordCallback(
   code: string,
   state?: string | null
 ): Promise<SessionUser> {
+  const clientId = getDiscordClientId();
+  const clientSecret = getDiscordClientSecret();
+  const redirectUriConfig = getDiscordRedirectUri();
+
   const cookieStore = cookies();
   const storedState = cookieStore.get(OAUTH_STATE_COOKIE_NAME)?.value;
 
   if (storedState && state && storedState !== state) {
     throw new Error("Invalid OAuth CSRF state parameter. Please try logging in again.");
   }
-  
+
   if (storedState) {
     cookieStore.delete(OAUTH_STATE_COOKIE_NAME);
   }
 
   // 1. Exchange authorization code for Discord access token
-  // Attempt with configured redirect URI, fallback to root or callback URL if Discord portal differs
   const redirectCandidates = [
-    DISCORD_REDIRECT_URI,
+    redirectUriConfig,
     "https://apply.vortextiers.xyz",
     "https://apply.vortextiers.xyz/api/auth/callback",
     "https://apply-vortextiers.vercel.app/api/auth/callback",
@@ -79,7 +90,35 @@ export async function handleDiscordCallback(
   let tokenData: any = null;
   let lastError = "";
 
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
   for (const uri of uniqueCandidates) {
+    // Attempt 1: Using Basic Auth Header
+    try {
+      const res = await fetch("https://discord.com/api/oauth2/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": `Basic ${basicAuth}`,
+        },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: uri,
+        }),
+      });
+
+      if (res.ok) {
+        tokenData = await res.json();
+        break;
+      } else {
+        lastError = await res.text();
+      }
+    } catch (e: any) {
+      lastError = e.message;
+    }
+
+    // Attempt 2: Using Form Body Parameters
     try {
       const res = await fetch("https://discord.com/api/oauth2/token", {
         method: "POST",
@@ -87,8 +126,8 @@ export async function handleDiscordCallback(
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          client_id: DISCORD_CLIENT_ID,
-          client_secret: DISCORD_CLIENT_SECRET,
+          client_id: clientId,
+          client_secret: clientSecret,
           grant_type: "authorization_code",
           code,
           redirect_uri: uri,
@@ -107,8 +146,8 @@ export async function handleDiscordCallback(
   }
 
   if (!tokenData || !tokenData.access_token) {
-    console.error("Discord token exchange failed for all redirect URIs:", lastError);
-    throw new Error(`Failed to exchange authorization code with Discord: ${lastError}`);
+    console.error("Discord token exchange failed:", lastError);
+    throw new Error(`Discord token exchange returned: ${lastError}`);
   }
 
   const accessToken = tokenData.access_token;
@@ -121,11 +160,11 @@ export async function handleDiscordCallback(
   });
 
   if (!userResponse.ok) {
-    throw new Error("Failed to fetch Discord user profile.");
+    const errProfile = await userResponse.text();
+    throw new Error(`Failed to fetch Discord user profile: ${errProfile}`);
   }
 
   const discordUser: DiscordUserResponse = await userResponse.json();
-
   const userEmail = discordUser.email || `${discordUser.id}@vortextiers.discord`;
 
   // 3. Determine Role & Admin Bootstrap
