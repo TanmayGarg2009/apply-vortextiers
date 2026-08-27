@@ -1117,6 +1117,9 @@ export const dbService = {
 
   // --- Metrics ---
   async getMetrics() {
+    const cached = getCached<any>("admin:metrics");
+    if (cached) return cached;
+
     if (await canConnectToDatabase()) {
       try {
         const counts = await prisma.application.groupBy({
@@ -1137,13 +1140,16 @@ export const dbService = {
           total += c._count._all;
         });
 
-        return {
+        const result = {
           pending: map.SUBMITTED || 0,
           underReview: map.UNDER_REVIEW || 0,
           accepted: map.ACCEPTED || 0,
           rejected: map.REJECTED || 0,
           total,
         };
+
+        setCached("admin:metrics", result, 15000);
+        return result;
       } catch (err) {
         console.warn("Prisma getMetrics error, using memory fallback:", err);
       }
@@ -1154,7 +1160,9 @@ export const dbService = {
     const underReview = all.filter((a) => a.status === "UNDER_REVIEW").length;
     const accepted = all.filter((a) => a.status === "ACCEPTED").length;
     const rejected = all.filter((a) => a.status === "REJECTED").length;
-    return { pending, underReview, accepted, rejected, total: all.length };
+    const res = { pending, underReview, accepted, rejected, total: all.length };
+    setCached("admin:metrics", res, 15000);
+    return res;
   },
 };
 
