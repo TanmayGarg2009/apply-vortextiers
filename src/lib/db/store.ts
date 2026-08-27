@@ -185,30 +185,35 @@ class InMemoryStore {
 
 const memoryStore = new InMemoryStore();
 
-let dbAvailableCache: boolean | null = null;
-let lastDbCheckTime = 0;
+/**
+ * Fast helper to resolve a valid PostgreSQL User.id cuid from either a cuid or Discord snowflake
+ */
+export async function resolveDbUserId(userIdOrDiscordId?: string | null): Promise<string | null> {
+  if (!userIdOrDiscordId) return null;
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: userIdOrDiscordId },
+          { discordId: userIdOrDiscordId },
+        ],
+      },
+      select: { id: true },
+    });
+    return user?.id || null;
+  } catch {
+    return null;
+  }
+}
 
 /**
- * Determine whether to use PostgreSQL Prisma connection or fallback store
+ * Determine whether to use PostgreSQL Prisma connection or fallback store (0ms overhead)
  */
 async function canConnectToDatabase(): Promise<boolean> {
   if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes("postgres.xxx")) {
     return false;
   }
-  const now = Date.now();
-  if (dbAvailableCache !== null && now - lastDbCheckTime < 30000) {
-    return dbAvailableCache;
-  }
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    dbAvailableCache = true;
-    lastDbCheckTime = now;
-    return true;
-  } catch {
-    dbAvailableCache = false;
-    lastDbCheckTime = now;
-    return false;
-  }
+  return true;
 }
 
 export const dbService = {
@@ -861,37 +866,55 @@ export const dbService = {
     const fromStatus = existing.status;
 
     if (await canConnectToDatabase()) {
-      return await prisma.$transaction(async (tx) => {
-        const updated = await tx.application.update({
-          where: { id: params.applicationId },
-          data: {
-            status: params.newStatus,
-            reviewedAt: new Date(),
-            reviewedById: params.reviewerId,
-            decisionReason: params.decisionReason,
-            acceptanceMessage: params.acceptanceMessage,
-            rejectionReason: params.rejectionReason,
-            updatedAt: new Date(),
-          },
-          include: {
-            user: true,
-            position: true,
-            mode: true,
+      let dbReviewerId = await resolveDbUserId(params.reviewerId);
+      if (!dbReviewerId && params.reviewerId) {
+        const fallbackUser = await prisma.user.upsert({
+          where: { discordId: params.reviewerId },
+          update: {},
+          create: {
+            discordId: params.reviewerId,
+            discordUsername: "Staff Reviewer",
+            email: `${params.reviewerId}@vortextiers.discord`,
+            role: "ADMIN",
           },
         });
+        dbReviewerId = fallbackUser.id;
+      }
 
-        await tx.statusHistory.create({
-          data: {
-            applicationId: params.applicationId,
-            fromStatus,
-            toStatus: params.newStatus,
-            changedById: params.reviewerId,
-            note: params.note || `Status changed to ${params.newStatus}`,
-          },
-        });
+      return await prisma.$transaction(
+        async (tx) => {
+          const updated = await tx.application.update({
+            where: { id: params.applicationId },
+            data: {
+              status: params.newStatus,
+              reviewedAt: new Date(),
+              reviewedById: dbReviewerId || undefined,
+              decisionReason: params.decisionReason,
+              acceptanceMessage: params.acceptanceMessage,
+              rejectionReason: params.rejectionReason,
+              updatedAt: new Date(),
+            },
+            include: {
+              user: true,
+              position: true,
+              mode: true,
+            },
+          });
 
-        return updated;
-      });
+          await tx.statusHistory.create({
+            data: {
+              applicationId: params.applicationId,
+              fromStatus,
+              toStatus: params.newStatus,
+              changedById: dbReviewerId || undefined,
+              note: params.note || `Status changed to ${params.newStatus}`,
+            },
+          });
+
+          return updated;
+        },
+        { timeout: 30000, maxWait: 10000 }
+      );
     }
 
     const app = memoryStore.applications.get(params.applicationId);
@@ -926,10 +949,25 @@ export const dbService = {
   // --- Internal Admin Notes ---
   async addAdminNote(params: { applicationId: string; authorId: string; content: string }): Promise<AdminNoteData> {
     if (await canConnectToDatabase()) {
+      let dbAuthorId = await resolveDbUserId(params.authorId);
+      if (!dbAuthorId) {
+        const fallbackUser = await prisma.user.upsert({
+          where: { discordId: params.authorId },
+          update: {},
+          create: {
+            discordId: params.authorId,
+            discordUsername: "Staff Reviewer",
+            email: `${params.authorId}@vortextiers.discord`,
+            role: "ADMIN",
+          },
+        });
+        dbAuthorId = fallbackUser.id;
+      }
+
       const note = await prisma.adminNote.create({
         data: {
           applicationId: params.applicationId,
-          authorId: params.authorId,
+          authorId: dbAuthorId,
           content: params.content,
         },
         include: { author: true },

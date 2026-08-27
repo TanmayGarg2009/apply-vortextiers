@@ -42,10 +42,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     redirect(callbackUrl);
   }
 
-  const user = await getSessionUser();
-  const settings = await dbService.getSettings();
-  const positions = await dbService.getStaffPositions();
-  const gameModes = await dbService.getGameModes();
+  const [user, settings, positions, gameModes] = await Promise.all([
+    getSessionUser(),
+    dbService.getSettings(),
+    dbService.getStaffPositions(),
+    dbService.getGameModes(),
+  ]);
 
   let userApps: any[] = [];
   if (user) {

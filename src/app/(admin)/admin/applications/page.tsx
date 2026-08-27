@@ -38,17 +38,18 @@ export default async function ApplicationsTablePage({
   const page = parseInt(searchParams.page || "1", 10);
   const limit = 12;
 
-  const result = await dbService.searchApplications({
-    query,
-    status,
-    positionId,
-    modeId,
-    page,
-    limit,
-  });
-
-  const positions = await dbService.getStaffPositions();
-  const gameModes = await dbService.getGameModes();
+  const [result, positions, gameModes] = await Promise.all([
+    dbService.searchApplications({
+      query,
+      status,
+      positionId,
+      modeId,
+      page,
+      limit,
+    }),
+    dbService.getStaffPositions(),
+    dbService.getGameModes(),
+  ]);
 
   const statuses: ApplicationStatus[] = [
     "SUBMITTED",

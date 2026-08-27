@@ -33,8 +33,10 @@ export default async function DashboardPage() {
     redirect("/api/auth/login");
   }
 
-  const applications = await dbService.getUserApplications(user.id);
-  const settings = await dbService.getSettings();
+  const [applications, settings] = await Promise.all([
+    dbService.getUserApplications(user.id),
+    dbService.getSettings(),
+  ]);
   const isApplicationsOpen = settings.applications_open !== false;
 
   const activeDraft = applications.find((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");

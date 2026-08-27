@@ -11,14 +11,31 @@ export interface LogAuditParams {
   userAgent?: string | null;
 }
 
+async function resolveUserCuid(userIdOrDiscordId?: string | null): Promise<string | null> {
+  if (!userIdOrDiscordId) return null;
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ id: userIdOrDiscordId }, { discordId: userIdOrDiscordId }],
+      },
+      select: { id: true },
+    });
+    return user?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Record an immutable audit log entry
  */
 export async function logAudit(params: LogAuditParams) {
   try {
+    const resolvedActorId = await resolveUserCuid(params.actorId);
+
     await prisma.auditLog.create({
       data: {
-        actorId: params.actorId || null,
+        actorId: resolvedActorId,
         action: params.action,
         targetType: params.targetType,
         targetId: params.targetId || null,
@@ -44,12 +61,14 @@ export async function logStatusTransition(params: {
   metadata?: any;
 }) {
   try {
+    const resolvedChangedById = await resolveUserCuid(params.changedById);
+
     await prisma.statusHistory.create({
       data: {
         applicationId: params.applicationId,
         fromStatus: params.fromStatus,
         toStatus: params.toStatus,
-        changedById: params.changedById || null,
+        changedById: resolvedChangedById,
         note: params.note || null,
         metadata: params.metadata ? JSON.stringify(params.metadata) : undefined,
       },

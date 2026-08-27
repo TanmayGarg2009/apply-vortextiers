@@ -38,16 +38,22 @@ export default async function ApplicationDetailPage({
   }
 
   // IDOR Protection: Applicant can only access own application
-  const isOwner = application.userId === user.id;
+  const isOwner =
+    application.userId === user.id ||
+    application.discordId === user.discordId ||
+    application.discordId === user.id ||
+    application.userId === user.discordId;
   const isStaff = user.role === "REVIEWER" || user.role === "ADMIN";
 
   if (!isOwner && !isStaff) {
     redirect("/dashboard");
   }
 
-  const positions = await dbService.getStaffPositions();
-  const gameModes = await dbService.getGameModes();
-  const questions = await dbService.getQuestions();
+  const [positions, gameModes, questions] = await Promise.all([
+    dbService.getStaffPositions(),
+    dbService.getGameModes(),
+    dbService.getQuestions(),
+  ]);
 
   // If Draft or Needs Changes, show the Interactive Form Wizard
   if (application.status === "DRAFT" || application.status === "NEEDS_CHANGES") {
