@@ -51,4 +51,17 @@ describe("Auth Session Security", () => {
     expect(verifySessionToken("")).toBeNull();
     expect(verifySessionToken("part1.part2.part3")).toBeNull();
   });
+
+  it("should transform direct Supabase connection string to IPv4 pooler", async () => {
+    const { getCanonicalDatabaseUrl } = await import("@/lib/db/prisma");
+    const original = process.env.DATABASE_URL;
+    process.env.DATABASE_URL = "postgresql://postgres:PfjjG071T9zFJsE9@db.nobgnouifnyhcsnowjoo.supabase.co:5432/postgres";
+    
+    const canonical = getCanonicalDatabaseUrl();
+    expect(canonical).toContain("aws-0-ap-south-1.pooler.supabase.com:6543");
+    expect(canonical).toContain("postgres.nobgnouifnyhcsnowjoo");
+    expect(canonical).toContain("pgbouncer=true");
+
+    process.env.DATABASE_URL = original;
+  });
 });
