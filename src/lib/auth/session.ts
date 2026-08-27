@@ -50,6 +50,11 @@ export function verifySessionToken(token: string): SessionUser | null {
     if (cleanToken.startsWith('"') && cleanToken.endsWith('"')) {
       cleanToken = cleanToken.slice(1, -1);
     }
+    if (cleanToken.includes("%")) {
+      try {
+        cleanToken = decodeURIComponent(cleanToken);
+      } catch {}
+    }
     const parts = cleanToken.split(".");
     if (parts.length !== 2) return null;
 
@@ -96,6 +101,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
  */
 export function attachSessionCookie(response: NextResponse, user: SessionUser): NextResponse {
   const token = createSessionToken(user);
+  const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: token,
@@ -104,7 +111,9 @@ export function attachSessionCookie(response: NextResponse, user: SessionUser): 
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
+    expires,
   });
+
   return response;
 }
 
@@ -114,7 +123,11 @@ export function attachSessionCookie(response: NextResponse, user: SessionUser): 
 export async function setSessionCookie(user: SessionUser): Promise<void> {
   const token = createSessionToken(user);
   const cookieStore = cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
+  const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  cookieStore.set(SESSION_COOKIE_NAME, token, {
+    ...SESSION_COOKIE_OPTIONS,
+    expires,
+  });
 }
 
 /**

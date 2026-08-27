@@ -139,6 +139,7 @@ export function ApplicationWizard({
         const res = await fetch(`/api/applications/${initialApplication.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             positionId,
             modeId: modeId || null,
@@ -205,6 +206,7 @@ export function ApplicationWizard({
       await fetch(`/api/applications/${initialApplication.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           positionId,
           modeId: modeId || null,
@@ -217,6 +219,7 @@ export function ApplicationWizard({
       const submitRes = await fetch(`/api/applications/${initialApplication.id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ confirmAccuracy: true }),
       });
 

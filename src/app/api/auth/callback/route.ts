@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     });
 
     const destinationUrl = getCanonicalDestination(targetPath, req);
-    const res = NextResponse.redirect(destinationUrl);
+    const res = NextResponse.redirect(destinationUrl, 303);
     attachSessionCookie(res, user);
     res.cookies.delete("vortex_oauth_state");
     return res;
