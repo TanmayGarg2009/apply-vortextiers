@@ -18,25 +18,28 @@ export default async function ApplyEntryPage({ searchParams }: ApplyEntryPagePro
     redirect("/api/auth/login?redirect_to=/apply");
   }
 
-  // 1. Check if applications are globally open
-  const settings = await dbService.getSettings();
+  // 1. Fetch settings, user applications, and positions concurrently
+  const [settings, userApps, positions] = await Promise.all([
+    dbService.getSettings(),
+    dbService.getUserApplications(user.id),
+    dbService.getStaffPositions(),
+  ]);
+
   if (settings.applications_open === false && user.role === "APPLICANT") {
     redirect("/closed");
   }
 
   const isExplicitNew = searchParams?.new === "1" || searchParams?.new === "true";
-  const userApps = await dbService.getUserApplications(user.id);
 
   // 2. If user didn't explicitly request a new application, resume active draft if present
   if (!isExplicitNew) {
-    const activeDraft = userApps.find((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
+    const activeDraft = (userApps || []).find((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
     if (activeDraft) {
       redirect(`/apply/${activeDraft.id}`);
     }
   }
 
   // 3. Create new application draft
-  const positions = await dbService.getStaffPositions();
   const defaultPosition = searchParams?.pos || positions[0]?.id || "pos-tester";
 
   const newDraft = await dbService.createDraft({

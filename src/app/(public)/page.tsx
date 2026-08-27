@@ -31,7 +31,6 @@ interface HomePageProps {
   };
 }
 
-export const dynamic = "force-dynamic";
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   // If Discord redirected directly to root domain with ?code=..., forward to the API Route Handler where cookies can be set

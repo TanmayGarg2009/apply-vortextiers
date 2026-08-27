@@ -492,31 +492,39 @@ export const dbService = {
     return `VT-${randomDigits}`;
   },
 
-  async getApplicationById(id: string): Promise<ApplicationData | null> {
+  async getApplicationById(id: string, includeAdminDetails = true): Promise<ApplicationData | null> {
     if (await canConnectToDatabase()) {
-      const app = await prisma.application.findUnique({
-        where: { id },
-        include: {
-          user: true,
-          position: true,
-          mode: true,
-          reviewedBy: true,
-          answers: { include: { question: true } },
-          uploads: true,
-          adminNotes: { include: { author: true }, orderBy: { createdAt: "desc" } },
-          statusHistory: { include: { changedBy: true }, orderBy: { createdAt: "desc" } },
-          emailEvents: { orderBy: { createdAt: "desc" } },
-        },
-      });
-      if (!app) return null;
-      return {
-        ...app,
-        answers: app.answers.map((a) => ({
-          ...a,
-          questionSnapshot: a.questionSnapshot ? (typeof a.questionSnapshot === "string" ? JSON.parse(a.questionSnapshot) : a.questionSnapshot) : null,
-          selectedOptions: a.selectedOptions ? (typeof a.selectedOptions === "string" ? JSON.parse(a.selectedOptions) : a.selectedOptions) : null,
-        })),
-      } as any;
+      try {
+        const app = await prisma.application.findUnique({
+          where: { id },
+          include: {
+            user: true,
+            position: true,
+            mode: true,
+            answers: { include: { question: true } },
+            uploads: true,
+            ...(includeAdminDetails
+              ? {
+                  reviewedBy: true,
+                  adminNotes: { include: { author: true }, orderBy: { createdAt: "desc" } },
+                  statusHistory: { include: { changedBy: true }, orderBy: { createdAt: "desc" } },
+                  emailEvents: { orderBy: { createdAt: "desc" } },
+                }
+              : {}),
+          },
+        });
+        if (!app) return null;
+        return {
+          ...app,
+          answers: app.answers.map((a) => ({
+            ...a,
+            questionSnapshot: a.questionSnapshot ? (typeof a.questionSnapshot === "string" ? JSON.parse(a.questionSnapshot) : a.questionSnapshot) : null,
+            selectedOptions: a.selectedOptions ? (typeof a.selectedOptions === "string" ? JSON.parse(a.selectedOptions) : a.selectedOptions) : null,
+          })),
+        } as any;
+      } catch (err) {
+        console.warn("Prisma getApplicationById error, fallback to memory:", err);
+      }
     }
 
     const app = memoryStore.applications.get(id);
@@ -528,15 +536,11 @@ export const dbService = {
     const statusHistory = Array.from(memoryStore.statusHistory.values()).filter((s) => s.applicationId === id);
     const emailEvents = Array.from(memoryStore.emailEvents.values()).filter((e) => e.applicationId === id);
 
-    const position = memoryStore.positions.get(app.positionId);
-    const mode = app.modeId ? memoryStore.modes.get(app.modeId) : null;
-    const user = memoryStore.users.get(app.userId);
-
     return {
       ...app,
-      position,
-      mode,
-      user,
+      position: memoryStore.positions.get(app.positionId),
+      mode: app.modeId ? memoryStore.modes.get(app.modeId) : null,
+      user: memoryStore.users.get(app.userId),
       answers,
       uploads,
       adminNotes,
@@ -547,22 +551,26 @@ export const dbService = {
 
   async getUserApplications(userId: string): Promise<ApplicationData[]> {
     if (await canConnectToDatabase()) {
-      const apps = await prisma.application.findMany({
-        where: {
-          OR: [
-            { userId },
-            { discordId: userId },
-            { user: { discordId: userId } },
-            { user: { id: userId } },
-          ],
-        },
-        include: {
-          position: true,
-          mode: true,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      return apps as any;
+      try {
+        const apps = await prisma.application.findMany({
+          where: {
+            OR: [
+              { userId },
+              { discordId: userId },
+              { user: { discordId: userId } },
+              { user: { id: userId } },
+            ],
+          },
+          include: {
+            position: true,
+            mode: true,
+          },
+          orderBy: { createdAt: "desc" },
+        });
+        return apps as any;
+      } catch (err) {
+        console.warn("Prisma getUserApplications error, fallback to memory:", err);
+      }
     }
 
     return Array.from(memoryStore.applications.values())
@@ -588,41 +596,45 @@ export const dbService = {
     const skip = (page - 1) * limit;
 
     if (await canConnectToDatabase()) {
-      const where: any = {};
-      if (params.status) where.status = params.status;
-      if (params.positionId) where.positionId = params.positionId;
-      if (params.modeId) where.modeId = params.modeId;
-      if (params.query) {
-        where.OR = [
-          { id: { contains: params.query, mode: "insensitive" } },
-          { discordId: { contains: params.query, mode: "insensitive" } },
-          { email: { contains: params.query, mode: "insensitive" } },
-          { minecraftUsername: { contains: params.query, mode: "insensitive" } },
-          { user: { discordUsername: { contains: params.query, mode: "insensitive" } } },
-        ];
+      try {
+        const where: any = {};
+        if (params.status) where.status = params.status;
+        if (params.positionId) where.positionId = params.positionId;
+        if (params.modeId) where.modeId = params.modeId;
+        if (params.query) {
+          where.OR = [
+            { id: { contains: params.query, mode: "insensitive" } },
+            { discordId: { contains: params.query, mode: "insensitive" } },
+            { email: { contains: params.query, mode: "insensitive" } },
+            { minecraftUsername: { contains: params.query, mode: "insensitive" } },
+            { user: { discordUsername: { contains: params.query, mode: "insensitive" } } },
+          ];
+        }
+
+        const [total, apps] = await Promise.all([
+          prisma.application.count({ where }),
+          prisma.application.findMany({
+            where,
+            include: {
+              user: true,
+              position: true,
+              mode: true,
+              reviewedBy: true,
+            },
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: limit,
+          }),
+        ]);
+
+        return {
+          applications: apps as any,
+          total,
+          totalPages: Math.ceil(total / limit),
+        };
+      } catch (err) {
+        console.warn("Prisma searchApplications error, fallback to memory:", err);
       }
-
-      const [total, apps] = await Promise.all([
-        prisma.application.count({ where }),
-        prisma.application.findMany({
-          where,
-          include: {
-            user: true,
-            position: true,
-            mode: true,
-            reviewedBy: true,
-          },
-          orderBy: { createdAt: "desc" },
-          skip,
-          take: limit,
-        }),
-      ]);
-
-      return {
-        applications: apps as any,
-        total,
-        totalPages: Math.ceil(total / limit),
-      };
     }
 
     let list = Array.from(memoryStore.applications.values()).map((app) => ({
@@ -649,15 +661,12 @@ export const dbService = {
           a.discordId.toLowerCase().includes(q) ||
           a.email.toLowerCase().includes(q) ||
           (a.minecraftUsername && a.minecraftUsername.toLowerCase().includes(q)) ||
-          (a.user && a.user.discordUsername.toLowerCase().includes(q))
+          (a.user && a.user.discordUsername && a.user.discordUsername.toLowerCase().includes(q))
       );
     }
 
     const total = list.length;
-    const paginated = list
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(skip, skip + limit);
-
+    const paginated = list.slice(skip, skip + limit);
     return {
       applications: paginated,
       total,
@@ -676,94 +685,60 @@ export const dbService = {
     const id = await this.generateApplicationId();
 
     if (await canConnectToDatabase()) {
-      // 1. Ensure user exists in database
-      let dbUser = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { id: params.userId },
-            { discordId: params.userId },
-            { discordId: params.discordId },
-          ],
-        },
-      });
-
-      if (!dbUser) {
-        dbUser = await prisma.user.upsert({
+      try {
+        // Direct upsert user in 1 query
+        const dbUser = await prisma.user.upsert({
           where: { discordId: params.discordId },
           update: { email: params.email },
           create: {
+            id: params.userId,
             discordId: params.discordId,
             discordUsername: params.discordId,
             email: params.email,
             role: Role.APPLICANT,
           },
         });
-      }
 
-      // 2. Resolve valid position ID
-      let dbPosition = await prisma.staffPosition.findFirst({
-        where: {
-          OR: [
-            { id: params.positionId },
-            { slug: params.positionId },
-          ],
-        },
-      });
-
-      if (!dbPosition) {
-        dbPosition = await prisma.staffPosition.findFirst({
-          where: { enabled: true },
-          orderBy: { order: "asc" },
-        });
-      }
-
-      if (!dbPosition) {
-        dbPosition = await prisma.staffPosition.create({
-          data: {
-            slug: "tier-tester",
-            name: "Tier Tester",
-            description: "Assess contenders in live tier testing matches and scoring brackets.",
-            enabled: true,
-            order: 1,
-            requiredEvidence: true,
-          },
-        });
-      }
-
-      // 3. Resolve valid mode ID if passed
-      let dbModeId: string | null = null;
-      if (params.modeId) {
-        const dbMode = await prisma.gameMode.findFirst({
-          where: {
-            OR: [
-              { id: params.modeId },
-              { slug: params.modeId },
-            ],
-          },
-        });
-        if (dbMode) {
-          dbModeId = dbMode.id;
+        // Resolve valid position ID
+        let targetPosId = params.positionId;
+        if (!targetPosId.startsWith("cm") && !targetPosId.startsWith("cui")) {
+          const dbPos = await prisma.staffPosition.findFirst({
+            where: { OR: [{ id: params.positionId }, { slug: params.positionId }, { enabled: true }] },
+            orderBy: { order: "asc" },
+          });
+          if (dbPos) targetPosId = dbPos.id;
         }
-      }
 
-      const app = await prisma.application.create({
-        data: {
-          id,
-          userId: dbUser.id,
-          discordId: params.discordId,
-          email: params.email,
-          positionId: dbPosition.id,
-          modeId: dbModeId,
-          minecraftUsername: params.minecraftUsername || null,
-          status: "DRAFT",
-          version: 1,
-        },
-        include: {
-          position: true,
-          mode: true,
-        },
-      });
-      return app as any;
+        // Create Application + StatusHistory in ONE atomic nested write
+        const app = await prisma.application.create({
+          data: {
+            id,
+            userId: dbUser.id,
+            discordId: params.discordId,
+            email: params.email,
+            positionId: targetPosId,
+            modeId: params.modeId || null,
+            minecraftUsername: params.minecraftUsername || null,
+            status: "DRAFT",
+            version: 1,
+            statusHistory: {
+              create: {
+                fromStatus: "DRAFT",
+                toStatus: "DRAFT",
+                changedById: dbUser.id,
+                note: "Draft application initialized.",
+              },
+            },
+          },
+          include: {
+            position: true,
+            mode: true,
+          },
+        });
+        return app as any;
+      } catch (err) {
+        console.warn("Prisma createDraft error, fallback to memory:", err);
+      }
     }
 
     const app: ApplicationData = {

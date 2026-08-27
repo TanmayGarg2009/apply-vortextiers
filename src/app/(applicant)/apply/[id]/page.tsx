@@ -32,7 +32,13 @@ export default async function ApplicationDetailPage({
     redirect(`/api/auth/login?redirect_to=/apply/${params.id}`);
   }
 
-  const application = await dbService.getApplicationById(params.id);
+  const [application, positions, gameModes, questions] = await Promise.all([
+    dbService.getApplicationById(params.id, false),
+    dbService.getStaffPositions(),
+    dbService.getGameModes(),
+    dbService.getQuestions(),
+  ]);
+
   if (!application) {
     notFound();
   }
@@ -48,12 +54,6 @@ export default async function ApplicationDetailPage({
   if (!isOwner && !isStaff) {
     redirect("/dashboard");
   }
-
-  const [positions, gameModes, questions] = await Promise.all([
-    dbService.getStaffPositions(),
-    dbService.getGameModes(),
-    dbService.getQuestions(),
-  ]);
 
   // If Draft or Needs Changes, show the Interactive Form Wizard
   if (application.status === "DRAFT" || application.status === "NEEDS_CHANGES") {
