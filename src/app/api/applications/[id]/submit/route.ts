@@ -4,6 +4,7 @@ import dbService from "@/lib/db/store";
 import { SubmitApplicationSchema } from "@/lib/validation/application";
 import { sendApplicationEmail } from "@/lib/email/resend";
 import { logAudit } from "@/lib/audit/audit-logger";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(
   req: NextRequest,
@@ -11,6 +12,9 @@ export async function POST(
 ) {
   try {
     const user = await requireAuth();
+    const rateLimitError = enforceRateLimit(req, "APPLICATION_SUBMIT", user.id);
+    if (rateLimitError) return rateLimitError;
+
     const { isOwner } = await checkApplicationAccess(params.id, user);
 
     if (!isOwner) {

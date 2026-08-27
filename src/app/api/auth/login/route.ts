@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getDiscordAuthUrl } from "@/lib/auth/discord";
 import { getSessionUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const rateLimitError = enforceRateLimit(req, "AUTH_LOGIN");
+  if (rateLimitError) return rateLimitError;
+
   try {
     const url = new URL(req.url);
     const redirectTo = url.searchParams.get("redirect_to") || "/dashboard";

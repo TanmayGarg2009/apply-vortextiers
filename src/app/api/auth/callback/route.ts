@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleDiscordCallback } from "@/lib/auth/discord";
 import { attachSessionCookie } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/audit-logger";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,9 @@ function getCanonicalDestination(targetPath: string, req: NextRequest): string {
 }
 
 export async function GET(req: NextRequest) {
+  const rateLimitError = enforceRateLimit(req, "AUTH_CALLBACK");
+  if (rateLimitError) return rateLimitError;
+
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");

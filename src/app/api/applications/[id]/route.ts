@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, checkApplicationAccess } from "@/lib/auth/rbac";
 import dbService from "@/lib/db/store";
 import { SaveDraftSchema } from "@/lib/validation/application";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 export async function GET(
   req: NextRequest,
@@ -29,6 +30,9 @@ export async function PUT(
 ) {
   try {
     const user = await requireAuth();
+    const rateLimitError = enforceRateLimit(req, "APPLICATION_AUTOSAVE", user.id);
+    if (rateLimitError) return rateLimitError;
+
     const { application, isOwner } = await checkApplicationAccess(params.id, user);
 
     if (!isOwner) {

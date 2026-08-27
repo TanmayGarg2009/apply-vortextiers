@@ -4,6 +4,7 @@ import dbService from "@/lib/db/store";
 import { UpdateStatusSchema } from "@/lib/validation/application";
 import { sendApplicationEmail } from "@/lib/email/resend";
 import { logAudit } from "@/lib/audit/audit-logger";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(
   req: NextRequest,
@@ -11,6 +12,9 @@ export async function POST(
 ) {
   try {
     const user = await requireReviewer();
+    const rateLimitError = enforceRateLimit(req, "ADMIN_ACTION", user.id);
+    if (rateLimitError) return rateLimitError;
+
     const body = await req.json();
     const validated = UpdateStatusSchema.parse(body);
 

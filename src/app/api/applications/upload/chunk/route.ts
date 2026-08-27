@@ -3,8 +3,12 @@ import { requireAuth } from "@/lib/auth/rbac";
 import { verifyUploadSessionToken } from "@/lib/drive/google-drive";
 import prisma from "@/lib/db/prisma";
 import dbService from "@/lib/db/store";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 export async function PUT(req: NextRequest) {
+  const rateLimitError = enforceRateLimit(req, "UPLOAD_CHUNK");
+  if (rateLimitError) return rateLimitError;
+
   try {
     await requireAuth();
 
