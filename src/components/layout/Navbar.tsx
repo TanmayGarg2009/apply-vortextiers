@@ -211,35 +211,40 @@ export function Navbar({ user }: NavbarProps) {
                   <a
                     href="https://modrinth.com/mod/vortex-tier-tagger"
                     target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-secondary/60 transition-colors"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3.5 p-2.5 rounded-lg hover:bg-secondary/60 transition-colors group/mod"
                   >
-                    <div className="h-8 w-8 rounded-lg bg-[#1BD96A]/15 border border-[#1BD96A]/30 flex items-center justify-center font-bold text-[#1BD96A] text-xs">
-                      M
+                    <div className="w-9 h-9 rounded-lg bg-[#1BD96A]/15 border border-[#1BD96A]/30 flex items-center justify-center flex-shrink-0 p-1.5">
+                      <img src="https://modrinth.com/favicon.ico" alt="Modrinth" className="w-5 h-5 object-contain" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                        Modrinth <span className="text-[9px] px-1 py-0.2 rounded bg-[#1BD96A]/20 text-[#1BD96A]">Official</span>
+                        Modrinth <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1BD96A]/20 text-[#1BD96A] font-semibold">Recommended</span>
                       </div>
                       <div className="text-[10px] text-muted-foreground">Download on Modrinth</div>
                     </div>
-                    <span className="text-xs font-bold text-primary">GET ↗</span>
+                    <span className="text-xs font-bold text-primary group-hover/mod:translate-x-0.5 transition-transform">GET ↗</span>
                   </a>
                   <a
                     href="https://www.curseforge.com/minecraft/mc-mods/vortex-tier-tagger"
                     target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-secondary/60 transition-colors"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3.5 p-2.5 rounded-lg hover:bg-secondary/60 transition-colors group/cf"
                   >
-                    <div className="h-8 w-8 rounded-lg bg-[#F16436]/15 border border-[#F16436]/30 flex items-center justify-center font-bold text-[#F16436] text-xs">
-                      CF
+                    <div className="w-9 h-9 rounded-lg bg-[#F16436]/15 border border-[#F16436]/30 flex items-center justify-center flex-shrink-0 p-1.5">
+                      <img src="https://www.curseforge.com/favicon.ico" alt="CurseForge" className="w-5 h-5 object-contain" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold text-white">CurseForge</div>
                       <div className="text-[10px] text-muted-foreground">Download on CurseForge</div>
                     </div>
-                    <span className="text-xs font-bold text-primary">GET ↗</span>
+                    <span className="text-xs font-bold text-primary group-hover/cf:translate-x-0.5 transition-transform">GET ↗</span>
                   </a>
+
+                  <div className="p-2.5 bg-secondary/40 border-t border-border/60 rounded-b-lg">
+                    <div className="text-xs font-bold text-foreground">Vortex Tier Tagger</div>
+                    <div className="text-[10px] text-muted-foreground">In-game Minecraft nametag &amp; tier badges.</div>
+                  </div>
                 </div>
               )}
             </div>
@@ -275,13 +280,13 @@ export function Navbar({ user }: NavbarProps) {
                         key={server.label}
                         href={server.url}
                         target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-secondary/60 transition-colors"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-secondary/60 transition-colors group/dc"
                       >
-                        <div className="h-6 w-6 rounded-full bg-secondary border border-border flex items-center justify-center p-1">
+                        <div className="h-7 w-7 rounded-full bg-secondary border border-border flex items-center justify-center p-1 group-hover/dc:border-primary/50 transition-colors">
                           <img src={server.icon} alt={server.label} className="h-full w-full object-contain" />
                         </div>
-                        <span className="text-xs font-semibold text-foreground">{server.label}</span>
+                        <span className="text-xs font-semibold text-foreground group-hover/dc:text-primary transition-colors">{server.label}</span>
                       </a>
                     ))}
                   </div>
@@ -289,14 +294,17 @@ export function Navbar({ user }: NavbarProps) {
                     <a
                       href="https://discord.gg/kjsMpEPdNe"
                       target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-between p-2 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-colors"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-colors group/vx"
                     >
-                      <div className="flex items-center gap-2">
-                        <img src="/vx-logo.jpg" alt="Vortex Hub" className="h-5 w-5 rounded" />
-                        <span className="text-xs font-bold text-primary">Main Vortex Discord Hub</span>
+                      <div className="flex items-center gap-2.5">
+                        <img src="/vx-logo.jpg" alt="Vortex Hub" className="h-6 w-6 rounded object-cover" />
+                        <div>
+                          <span className="text-xs font-bold text-primary block leading-none">Vortex Network</span>
+                          <span className="text-[10px] text-muted-foreground">Main Discord Hub</span>
+                        </div>
                       </div>
-                      <span className="text-[11px] font-mono text-primary font-bold">JOIN ↗</span>
+                      <span className="text-[11px] font-mono text-primary font-bold group-hover/vx:translate-x-0.5 transition-transform">JOIN ↗</span>
                     </a>
                   </div>
                 </div>
