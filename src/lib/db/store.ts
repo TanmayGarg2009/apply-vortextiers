@@ -552,22 +552,30 @@ export const dbService = {
   async getUserApplications(userId: string): Promise<ApplicationData[]> {
     if (await canConnectToDatabase()) {
       try {
-        const apps = await prisma.application.findMany({
-          where: {
-            OR: [
-              { userId },
-              { discordId: userId },
-              { user: { discordId: userId } },
-              { user: { id: userId } },
-            ],
-          },
-          include: {
-            position: true,
-            mode: true,
-          },
-          orderBy: { createdAt: "desc" },
-        });
-        return apps as any;
+        const [apps, positions, modes] = await Promise.all([
+          prisma.application.findMany({
+            where: {
+              OR: [
+                { userId },
+                { discordId: userId },
+                { user: { discordId: userId } },
+                { user: { id: userId } },
+              ],
+            },
+            orderBy: { createdAt: "desc" },
+          }),
+          this.getStaffPositions(),
+          this.getGameModes(),
+        ]);
+
+        const posMap = new Map(positions.map((p) => [p.id, p]));
+        const modeMap = new Map(modes.map((m) => [m.id, m]));
+
+        return apps.map((app) => ({
+          ...app,
+          position: posMap.get(app.positionId) || null,
+          mode: app.modeId ? modeMap.get(app.modeId) || null : null,
+        })) as any;
       } catch (err) {
         console.warn("Prisma getUserApplications error, fallback to memory:", err);
       }
@@ -611,24 +619,33 @@ export const dbService = {
           ];
         }
 
-        const [total, apps] = await Promise.all([
+        const [total, apps, positions, modes] = await Promise.all([
           prisma.application.count({ where }),
           prisma.application.findMany({
             where,
             include: {
               user: true,
-              position: true,
-              mode: true,
               reviewedBy: true,
             },
             orderBy: { createdAt: "desc" },
             skip,
             take: limit,
           }),
+          this.getStaffPositions(),
+          this.getGameModes(),
         ]);
 
+        const posMap = new Map(positions.map((p) => [p.id, p]));
+        const modeMap = new Map(modes.map((m) => [m.id, m]));
+
+        const populatedApps = apps.map((app) => ({
+          ...app,
+          position: posMap.get(app.positionId) || null,
+          mode: app.modeId ? modeMap.get(app.modeId) || null : null,
+        }));
+
         return {
-          applications: apps as any,
+          applications: populatedApps as any,
           total,
           totalPages: Math.ceil(total / limit),
         };
