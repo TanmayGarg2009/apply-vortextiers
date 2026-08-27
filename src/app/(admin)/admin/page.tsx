@@ -162,7 +162,7 @@ export default async function AdminOverviewPage() {
 
                   <div className="flex items-center gap-3">
                     <StatusBadge status={app.status} />
-                    <span className="text-xs text-muted-foreground font-mono">
+                    <span suppressHydrationWarning className="text-xs text-muted-foreground font-mono">
                       {formatDate(app.submittedAt || app.createdAt)}
                     </span>
                     <Button asChild size="sm" variant="outline" className="h-7 text-xs">

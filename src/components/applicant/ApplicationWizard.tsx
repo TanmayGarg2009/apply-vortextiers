@@ -76,18 +76,12 @@ export function ApplicationWizard({
   // Restore local draft on mount if available
   useEffect(() => {
     try {
-      const savedDraftStr = localStorage.getItem(`vortex_draft_${user.id}_${initialApplication.id}`);
+      const savedDraftStr = localStorage.getItem(`vortex_local_draft_${user.id}`);
       if (savedDraftStr) {
         const draft = JSON.parse(savedDraftStr);
-        if (draft.minecraftUsername && !initialApplication.minecraftUsername) {
-          setMinecraftUsername(draft.minecraftUsername);
-        }
-        if (draft.positionId && !initialApplication.positionId) {
-          setPositionId(draft.positionId);
-        }
-        if (draft.modeId && !initialApplication.modeId) {
-          setModeId(draft.modeId);
-        }
+        if (draft.minecraftUsername) setMinecraftUsername(draft.minecraftUsername);
+        if (draft.positionId) setPositionId(draft.positionId);
+        if (draft.modeId) setModeId(draft.modeId);
         if (draft.answers && Object.keys(draft.answers).length > 0) {
           setAnswers((prev) => ({
             ...draft.answers,
@@ -98,7 +92,7 @@ export function ApplicationWizard({
     } catch (e) {
       console.warn("Failed to restore local draft:", e);
     }
-  }, [user.id, initialApplication.id, initialApplication.minecraftUsername, initialApplication.positionId, initialApplication.modeId]);
+  }, [user.id]);
 
   const [uploadedFiles, setUploadedFiles] = useState<UploadData[]>(initialApplication.uploads || []);
   const [confirmAccuracy, setConfirmAccuracy] = useState(false);
@@ -123,10 +117,10 @@ export function ApplicationWizard({
     currentPosId = positionId,
     currentModeId = modeId
   ) => {
-    // 1. Immediately persist to localStorage
+    // 1. Immediately persist to localStorage (100% local)
     try {
       localStorage.setItem(
-        `vortex_draft_${user.id}_${initialApplication.id}`,
+        `vortex_local_draft_${user.id}`,
         JSON.stringify({
           positionId: currentPosId,
           modeId: currentModeId,
@@ -135,39 +129,11 @@ export function ApplicationWizard({
           updatedAt: new Date().toISOString(),
         })
       );
-    } catch {}
-
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-
-    setAutosaveStatus("saving");
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        const payloadAnswers = Object.entries(currentAnswers).map(([qId, data]) => ({
-          questionId: qId,
-          value: data.value,
-          selectedOptions: data.selectedOptions,
-        }));
-
-        const res = await fetch(`/api/applications/${initialApplication.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            positionId: currentPosId,
-            modeId: currentModeId || null,
-            minecraftUsername: currentUsername || null,
-            answers: payloadAnswers,
-          }),
-        });
-
-        if (!res.ok) throw new Error("Failed to save");
-
-        setAutosaveStatus("saved");
-        setLastSavedAt(new Date());
-      } catch {
-        setAutosaveStatus("error");
-      }
-    }, 1000);
+      setAutosaveStatus("saved");
+      setLastSavedAt(new Date());
+    } catch (e) {
+      setAutosaveStatus("error");
+    }
   };
 
   // Filter applicable questions for currently selected position & game mode
@@ -211,31 +177,25 @@ export function ApplicationWizard({
     setSubmitError(null);
 
     try {
-      // 1. Final sync save
       const payloadAnswers = Object.entries(answers).map(([qId, data]) => ({
         questionId: qId,
         value: data.value,
         selectedOptions: data.selectedOptions,
       }));
 
-      await fetch(`/api/applications/${initialApplication.id}`, {
-        method: "PUT",
+      // Submit directly to API
+      const submitRes = await fetch(`/api/applications/submit`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           positionId,
           modeId: modeId || null,
-          minecraftUsername: minecraftUsername || null,
+          minecraftUsername: minecraftUsername.trim(),
           answers: payloadAnswers,
+          uploads: uploadedFiles,
+          confirmAccuracy: true,
         }),
-      });
-
-      // 2. Submit application
-      const submitRes = await fetch(`/api/applications/${initialApplication.id}/submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ confirmAccuracy: true }),
       });
 
       if (!submitRes.ok) {
@@ -243,11 +203,13 @@ export function ApplicationWizard({
         throw new Error(err.error || "Submission failed.");
       }
 
+      const resData = await submitRes.json();
+
       try {
-        localStorage.removeItem(`vortex_draft_${user.id}_${initialApplication.id}`);
+        localStorage.removeItem(`vortex_local_draft_${user.id}`);
       } catch {}
 
-      router.push(`/dashboard?submitted=${initialApplication.id}`);
+      router.push(`/dashboard?submitted=${resData.application?.id || "true"}`);
       router.refresh();
     } catch (err: any) {
       setSubmitError(err.message || "Failed to submit application.");

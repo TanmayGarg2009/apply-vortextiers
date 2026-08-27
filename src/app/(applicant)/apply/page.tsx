@@ -33,35 +33,28 @@ export default async function ApplyEntryPage({ searchParams }: ApplyEntryPagePro
     redirect("/closed");
   }
 
-  const isExplicitNew = searchParams?.new === "1" || searchParams?.new === "true";
-
-  // Check for active draft
-  let application = !isExplicitNew
-    ? (userApps || []).find((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES")
-    : null;
-
-  // If no draft exists, create one
-  if (!application) {
-    const defaultPosition = searchParams?.pos || positions[0]?.id || "pos-tester";
-    application = await dbService.createDraft({
-      userId: user.id,
-      discordId: user.discordId,
-      email: user.email,
-      positionId: defaultPosition,
-      modeId: searchParams?.mode || undefined,
-    });
-  } else {
-    // If resuming existing draft, fetch lightweight details
-    const fullDraft = await dbService.getApplicationById(application.id, false);
-    if (fullDraft) {
-      application = fullDraft;
-    }
-  }
+  // Local initial application template (drafts are 100% client-side)
+  const defaultPosition = searchParams?.pos || positions[0]?.id || "pos-tester";
+  const initialApplication: any = {
+    id: "draft",
+    userId: user.id,
+    discordId: user.discordId,
+    email: user.email,
+    positionId: defaultPosition,
+    modeId: searchParams?.mode || null,
+    minecraftUsername: "",
+    status: "DRAFT",
+    version: 1,
+    answers: [],
+    uploads: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 
   return (
     <ApplicationWizard
       user={user}
-      initialApplication={application}
+      initialApplication={initialApplication}
       positions={positions}
       gameModes={gameModes}
       questions={questions}

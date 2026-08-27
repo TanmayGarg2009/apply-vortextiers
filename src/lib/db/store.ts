@@ -858,6 +858,116 @@ export const dbService = {
     }
   },
 
+  async createSubmittedApplication(params: {
+    userId: string;
+    discordId: string;
+    email: string;
+    positionId: string;
+    modeId?: string | null;
+    minecraftUsername: string;
+    answers: { questionId: string; value?: string | null; selectedOptions?: string[] }[];
+    uploads?: { fileName: string; fileSize: number; mimeType: string; fileUrl: string; googleDriveFileId?: string }[];
+  }): Promise<ApplicationData> {
+    const id = await this.generateApplicationId();
+    const questions = await this.getQuestions();
+    const qMap = new Map(questions.map((q) => [q.id, q]));
+
+    if (await canConnectToDatabase()) {
+      const dbUser = await prisma.user.upsert({
+        where: { discordId: params.discordId },
+        update: { email: params.email },
+        create: {
+          id: params.userId,
+          discordId: params.discordId,
+          discordUsername: params.discordId,
+          email: params.email,
+          role: Role.APPLICANT,
+        },
+      });
+
+      let targetPosId = params.positionId;
+      if (!targetPosId.startsWith("cm") && !targetPosId.startsWith("cui")) {
+        const dbPos = await prisma.staffPosition.findFirst({
+          where: { OR: [{ id: params.positionId }, { slug: params.positionId }, { enabled: true }] },
+          orderBy: { order: "asc" },
+        });
+        if (dbPos) targetPosId = dbPos.id;
+      }
+
+      const answersCreate = params.answers.map((ans) => {
+        const qDef = qMap.get(ans.questionId);
+        return {
+          questionId: ans.questionId,
+          value: ans.value || "",
+          selectedOptions: ans.selectedOptions || [],
+          questionSnapshot: qDef ? JSON.stringify(qDef) : null,
+        };
+      });
+
+      const uploadsCreate = (params.uploads || []).map((u) => ({
+        filename: u.fileName,
+        safeFilename: u.fileName.replace(/[^a-zA-Z0-9._-]/g, "_"),
+        sizeBytes: u.fileSize,
+        mimeType: u.mimeType,
+        googleDriveFileId: u.googleDriveFileId || `local_${Date.now()}`,
+        googleDriveViewLink: u.fileUrl,
+      }));
+
+      const app = await prisma.application.create({
+        data: {
+          id,
+          userId: dbUser.id,
+          discordId: params.discordId,
+          email: params.email,
+          positionId: targetPosId,
+          modeId: params.modeId || null,
+          minecraftUsername: params.minecraftUsername,
+          status: "SUBMITTED",
+          version: 1,
+          submittedAt: new Date(),
+          answers: { create: answersCreate as any },
+          uploads: { create: uploadsCreate as any },
+          statusHistory: {
+            create: {
+              fromStatus: "SUBMITTED",
+              toStatus: "SUBMITTED",
+              changedById: dbUser.id,
+              note: "Application directly submitted by applicant.",
+            },
+          },
+        },
+        include: {
+          user: true,
+          position: true,
+          mode: true,
+        },
+      });
+
+      return app as any;
+    }
+
+    const app: ApplicationData = {
+      id,
+      userId: params.userId,
+      discordId: params.discordId,
+      email: params.email,
+      positionId: params.positionId,
+      modeId: params.modeId || null,
+      minecraftUsername: params.minecraftUsername,
+      status: "SUBMITTED",
+      version: 1,
+      submittedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    memoryStore.applications.set(id, app);
+    return {
+      ...app,
+      position: memoryStore.positions.get(params.positionId),
+      mode: params.modeId ? memoryStore.modes.get(params.modeId) : null,
+    };
+  },
+
   async submitApplication(applicationId: string) {
     const questions = await this.getQuestions();
     const qMap = new Map(questions.map((q) => [q.id, q]));

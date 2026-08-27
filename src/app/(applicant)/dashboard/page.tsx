@@ -25,6 +25,8 @@ import {
   Trophy,
 } from "lucide-react";
 
+import { DashboardDraftBanner } from "@/components/applicant/DashboardDraftBanner";
+
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
@@ -39,13 +41,17 @@ export default async function DashboardPage() {
   ]);
   const isApplicationsOpen = settings.applications_open !== false;
 
-  const activeDraft = applications.find((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
+  // Filter out any legacy drafts from the submitted list
+  const submittedApps = applications.filter((a) => a.status !== "DRAFT");
 
   // Find latest Minecraft username used
-  const latestIGN = applications[0]?.minecraftUsername || null;
+  const latestIGN = submittedApps[0]?.minecraftUsername || null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 py-8 px-4 sm:px-6 lg:px-8">
+      {/* Local Draft Banner if active */}
+      <DashboardDraftBanner userId={user.id} />
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/70 pb-6">
         <div>
@@ -58,23 +64,15 @@ export default async function DashboardPage() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1 font-mono">
-            Vortex Tiers candidate portal. Monitor recruitment progress, edit drafts, and submit multiple role applications.
+            Vortex Tiers candidate portal. Monitor recruitment progress and submit staff applications.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {activeDraft && (
-            <Button asChild className="bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs h-10 px-5 gap-2 shadow-lg shadow-amber-500/20">
-              <Link href={`/apply/${activeDraft.id}`}>
-                <FileText className="h-4 w-4" /> Resume Draft
-              </Link>
-            </Button>
-          )}
-
           {isApplicationsOpen && (
             <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold text-xs h-10 px-5 gap-2 shadow-lg shadow-primary/20">
-              <Link href="/apply?new=1">
-                <PlusCircle className="h-4 w-4" /> + New Application
+              <Link href="/apply">
+                <PlusCircle className="h-4 w-4" /> + Apply for Staff
               </Link>
             </Button>
           )}
@@ -136,29 +134,20 @@ export default async function DashboardPage() {
           </span>
         </div>
 
-        {applications.length === 0 ? (
-          <div className="rounded-2xl border border-border/70 bg-[#121721] p-12 text-center space-y-4">
-            <div className="mx-auto h-12 w-12 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
-              <Swords className="h-6 w-6" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="font-mono font-bold text-white text-base">No Applications Found</h4>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                You haven't submitted a staff application for Vortex Tiers yet. Start a new submission to join the team.
-              </p>
-            </div>
-            {isApplicationsOpen && (
-              <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold text-xs">
-                <Link href="/apply">Start First Application</Link>
-              </Button>
-            )}
-          </div>
+        {submittedApps.length === 0 ? (
+          <EmptyState
+            icon={<FileText className="h-10 w-10 text-muted-foreground" />}
+            title="No applications submitted yet"
+            description="You haven't submitted any staff applications yet. Select a discipline and apply."
+            actionLabel="Start Staff Application"
+            actionHref="/apply"
+          />
         ) : (
           <div className="space-y-4">
-            {applications.map((app) => (
+            {submittedApps.map((app) => (
               <div
                 key={app.id}
-                className="rounded-2xl border border-border/80 bg-[#121721] p-5 sm:p-6 transition-all hover:border-border space-y-4 shadow-md"
+                className="rounded-2xl border border-border/80 bg-[#121721] p-5 space-y-4 shadow-sm hover:border-primary/40 transition-colors"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
                   <div className="flex items-center gap-3">
@@ -174,7 +163,7 @@ export default async function DashboardPage() {
                           {app.id}
                         </span>
                       </div>
-                      <span className="text-xs text-muted-foreground font-mono block mt-0.5">
+                      <span suppressHydrationWarning className="text-xs text-muted-foreground font-mono block mt-0.5">
                         Created {formatDate(app.createdAt)} {app.submittedAt && `• Submitted ${formatDate(app.submittedAt)}`}
                       </span>
                     </div>

@@ -126,7 +126,7 @@ async function ApplicationsTableData({
                     <StatusBadge status={app.status} />
                   </td>
 
-                  <td className="py-3.5 px-4 font-mono text-muted-foreground">
+                  <td suppressHydrationWarning className="py-3.5 px-4 font-mono text-muted-foreground">
                     {formatDate(app.submittedAt || app.createdAt)}
                   </td>
 
