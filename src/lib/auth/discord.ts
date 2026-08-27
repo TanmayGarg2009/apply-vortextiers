@@ -38,7 +38,6 @@ export function getDiscordAuthUrl(state?: string, customRedirectUri?: string): s
     redirect_uri: redirectUri,
     scope: "identify email",
     state: stateToken,
-    prompt: "consent",
   });
 
   return `https://discord.com/oauth2/authorize?${params.toString()}`;

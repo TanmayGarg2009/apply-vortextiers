@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getDiscordAuthUrl } from "@/lib/auth/discord";
+import { getSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -8,10 +9,18 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const redirectTo = url.searchParams.get("redirect_to") || "/dashboard";
+    // Sanitize redirect target to prevent open redirect
+    const safeRedirect = redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/dashboard";
+
+    // If user is already authenticated, immediately forward to destination without re-authenticating with Discord
+    const existingUser = await getSessionUser();
+    if (existingUser) {
+      return NextResponse.redirect(new URL(safeRedirect, req.url));
+    }
 
     const statePayload = {
       rnd: crypto.randomBytes(16).toString("hex"),
-      to: redirectTo,
+      to: safeRedirect,
     };
     const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
 

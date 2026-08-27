@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
   } catch {}
 
   await clearSessionCookie();
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://apply.vortextiers.xyz";
-  const res = NextResponse.redirect(`${baseUrl}/logout`);
+  const logoutUrl = new URL("/logout", req.url).toString();
+  const res = NextResponse.redirect(logoutUrl);
   res.cookies.delete(SESSION_COOKIE_NAME);
   return res;
 }

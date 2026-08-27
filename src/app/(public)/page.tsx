@@ -36,7 +36,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   if (searchParams?.code) {
     const callbackUrl = `/api/auth/callback?code=${encodeURIComponent(searchParams.code)}${
       searchParams.state ? `&state=${encodeURIComponent(searchParams.state)}` : ""
-    }`;
+    }&from_root=1`;
     redirect(callbackUrl);
   }
 
@@ -44,6 +44,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const settings = await dbService.getSettings();
   const positions = await dbService.getStaffPositions();
   const gameModes = await dbService.getGameModes();
+
+  let userApps: any[] = [];
+  if (user) {
+    userApps = await dbService.getUserApplications(user.id);
+  }
+  const hasDraft = userApps.some((a) => a.status === "DRAFT" || a.status === "NEEDS_CHANGES");
+  const hasSubmitted = userApps.some((a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW");
 
   const isApplicationsOpen = settings.applications_open !== false;
   const banner = settings.announcement_banner as string;
@@ -101,10 +108,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 size="lg"
                 className="bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm px-8 h-12 gap-2 shadow-lg shadow-primary/25 font-mono"
               >
-                <Link href="/apply">
-                  Start / Continue Application <ArrowRight className="h-4 w-4" />
+                <Link href={hasDraft ? "/apply" : hasSubmitted ? "/dashboard" : "/apply"}>
+                  {hasDraft
+                    ? "Resume Draft Application"
+                    : hasSubmitted
+                    ? "View Application Status"
+                    : "Start a New Application"}{" "}
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
+
               <Button
                 asChild
                 variant="outline"
@@ -115,6 +128,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                   Applicant Dashboard
                 </Link>
               </Button>
+
+              {(user.role === "ADMIN" || user.role === "REVIEWER") && (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="h-12 border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-bold font-mono"
+                >
+                  <Link href="/admin">
+                    Staff Review Suite 🛡️
+                  </Link>
+                </Button>
+              )}
             </div>
           ) : isApplicationsOpen ? (
             <Button
