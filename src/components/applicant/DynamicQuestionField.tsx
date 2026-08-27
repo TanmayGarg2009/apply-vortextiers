@@ -3,6 +3,7 @@
 import React from "react";
 import { QuestionData } from "@/types";
 import { MinecraftAvatar } from "@/components/shared/MinecraftAvatar";
+import { Video, Image, FileText, Link2, UploadCloud } from "lucide-react";
 
 interface DynamicQuestionFieldProps {
   question: QuestionData;
@@ -92,13 +93,56 @@ export function DynamicQuestionField({
       )}
 
       {question.type === "URL" && (
-        <input
-          type="url"
-          value={value}
-          onChange={(e) => onChange(e.target.value, selectedOptions)}
-          placeholder="https://youtube.com/watch?v=... or medal.tv/..."
-          className="w-full rounded-xl border border-border bg-[#121721] px-4 py-2.5 text-xs text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-        />
+        <div className="relative">
+          <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="url"
+            value={value}
+            onChange={(e) => onChange(e.target.value, selectedOptions)}
+            placeholder="https://youtube.com/watch?v=... or medal.tv/..."
+            className="w-full rounded-xl border border-border bg-[#121721] pl-9 pr-4 py-2.5 text-xs text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+          />
+        </div>
+      )}
+
+      {(question.type === "VIDEO" || question.type === "IMAGE" || question.type === "FILE") && (
+        <div className="space-y-2 rounded-xl border border-border/80 bg-[#121721] p-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-mono text-white">
+              {question.type === "VIDEO" ? (
+                <Video className="h-4 w-4 text-primary" />
+              ) : question.type === "IMAGE" ? (
+                <Image className="h-4 w-4 text-primary" />
+              ) : (
+                <FileText className="h-4 w-4 text-primary" />
+              )}
+              <span>
+                {question.type === "VIDEO"
+                  ? "Gameplay Clip Link or Attachment"
+                  : question.type === "IMAGE"
+                  ? "Screenshot Link or Attachment"
+                  : "Evidence Document or File Link"}
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              Direct upload available in Step 4
+            </span>
+          </div>
+
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value, selectedOptions)}
+            placeholder={
+              question.type === "VIDEO"
+                ? "Paste YouTube / Medal.tv / Google Drive clip link here..."
+                : question.type === "IMAGE"
+                ? "Paste Imgur / screenshot link or enter evidence note..."
+                : "Paste document link or description..."
+            }
+            className="w-full rounded-lg border border-border/70 bg-[#0a0d13] px-3 py-2 text-xs text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+          />
+        </div>
       )}
 
       {question.type === "MULTIPLE_CHOICE" && (

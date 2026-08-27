@@ -73,6 +73,33 @@ export function ApplicationWizard({
     return map;
   });
 
+  // Restore local draft on mount if available
+  useEffect(() => {
+    try {
+      const savedDraftStr = localStorage.getItem(`vortex_draft_${user.id}_${initialApplication.id}`);
+      if (savedDraftStr) {
+        const draft = JSON.parse(savedDraftStr);
+        if (draft.minecraftUsername && !initialApplication.minecraftUsername) {
+          setMinecraftUsername(draft.minecraftUsername);
+        }
+        if (draft.positionId && !initialApplication.positionId) {
+          setPositionId(draft.positionId);
+        }
+        if (draft.modeId && !initialApplication.modeId) {
+          setModeId(draft.modeId);
+        }
+        if (draft.answers && Object.keys(draft.answers).length > 0) {
+          setAnswers((prev) => ({
+            ...draft.answers,
+            ...prev,
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to restore local draft:", e);
+    }
+  }, [user.id, initialApplication.id, initialApplication.minecraftUsername, initialApplication.positionId, initialApplication.modeId]);
+
   const [uploadedFiles, setUploadedFiles] = useState<UploadData[]>(initialApplication.uploads || []);
   const [confirmAccuracy, setConfirmAccuracy] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -84,6 +111,20 @@ export function ApplicationWizard({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerAutosave = () => {
+    // 1. Immediately persist to localStorage
+    try {
+      localStorage.setItem(
+        `vortex_draft_${user.id}_${initialApplication.id}`,
+        JSON.stringify({
+          positionId,
+          modeId,
+          minecraftUsername,
+          answers,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+    } catch {}
+
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
     setAutosaveStatus("saving");
@@ -113,7 +154,7 @@ export function ApplicationWizard({
       } catch {
         setAutosaveStatus("error");
       }
-    }, 1200);
+    }, 1000);
   };
 
   // Filter applicable questions for currently selected position & game mode
@@ -183,6 +224,10 @@ export function ApplicationWizard({
         const err = await submitRes.json();
         throw new Error(err.error || "Submission failed.");
       }
+
+      try {
+        localStorage.removeItem(`vortex_draft_${user.id}_${initialApplication.id}`);
+      } catch {}
 
       router.push(`/dashboard?submitted=${initialApplication.id}`);
       router.refresh();
