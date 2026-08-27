@@ -19,6 +19,10 @@ import {
   ExternalLink,
   Shield,
   ArrowRight,
+  UserCheck,
+  Flame,
+  Swords,
+  Trophy,
 } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -32,9 +36,12 @@ export default async function DashboardPage() {
 
   const activeDraft = applications.find((a) => a.status === "DRAFT");
   const pendingApp = applications.find(
-    (a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW"
+    (a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW" || a.status === "NEEDS_CHANGES"
   );
   const canStartNew = !activeDraft && !pendingApp && settings.applications_open !== false;
+
+  // Find latest Minecraft username used
+  const latestIGN = applications[0]?.minecraftUsername || null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 py-8 px-4 sm:px-6 lg:px-8">
@@ -42,39 +49,41 @@ export default async function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/70 pb-6">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white font-mono uppercase">
               Applicant Dashboard
             </h1>
             <span className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary">
               {user.role}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Track your Vortex Tiers staff applications, review feedback, and manage your submissions.
+          <p className="text-xs text-muted-foreground mt-1 font-mono">
+            Vortex Tiers candidate portal. Monitor recruitment progress and review decisions.
           </p>
         </div>
 
-        {canStartNew && (
-          <Button asChild className="gap-2 font-bold shadow-sm shadow-primary/20">
-            <Link href="/apply">
-              <PlusCircle className="h-4 w-4" /> New Staff Application
-            </Link>
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {canStartNew && (
+            <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold text-xs h-10 px-5 gap-2 shadow-lg shadow-primary/20">
+              <Link href="/apply">
+                <PlusCircle className="h-4 w-4" /> New Application
+              </Link>
+            </Button>
+          )}
 
-        {activeDraft && (
-          <Button asChild className="gap-2 font-bold bg-amber-500 hover:bg-amber-400 text-black">
-            <Link href={`/apply/${activeDraft.id}`}>
-              <FileText className="h-4 w-4" /> Resume Application Draft
-            </Link>
-          </Button>
-        )}
+          {activeDraft && (
+            <Button asChild className="bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs h-10 px-5 gap-2">
+              <Link href={`/apply/${activeDraft.id}`}>
+                <FileText className="h-4 w-4" /> Resume Draft
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Applicant Discord Profile Card */}
-      <div className="rounded-xl border border-border/80 bg-card p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+      {/* Applicant Passport Profile */}
+      <div className="rounded-2xl border border-border/80 bg-[#121721] p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="h-14 w-14 rounded-full overflow-hidden border border-border bg-secondary flex items-center justify-center font-bold text-lg">
+          <div className="h-16 w-16 rounded-2xl overflow-hidden border border-border bg-secondary/80 flex items-center justify-center font-bold text-lg text-primary shadow-sm flex-shrink-0">
             {user.discordAvatar ? (
               <img
                 src={`https://cdn.discordapp.com/avatars/${user.discordId}/${user.discordAvatar}.png`}
@@ -85,132 +94,128 @@ export default async function DashboardPage() {
               user.discordUsername.substring(0, 2).toUpperCase()
             )}
           </div>
-          <div>
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-foreground">
+              <h2 className="text-lg font-black text-white font-mono">
                 {user.discordGlobalName || user.discordUsername}
               </h2>
-              <span className="text-xs text-muted-foreground font-mono">@{user.discordUsername}</span>
+              <span className="rounded bg-[#5865F2]/15 border border-[#5865F2]/30 px-1.5 py-0.5 text-[10px] font-bold text-[#5865F2] font-mono">
+                Discord Auth
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">
-              Discord ID: {user.discordId} • {user.email}
+            <p className="text-xs text-muted-foreground font-mono">
+              ID: {user.discordId} • {user.email || "No email on record"}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {user.role !== "APPLICANT" && (
-            <Button asChild variant="outline" size="sm" className="gap-1.5 border-purple-500/40 text-purple-300">
-              <Link href="/admin">
-                <Shield className="h-3.5 w-3.5" /> Staff Review Suite
-              </Link>
-            </Button>
-          )}
-        </div>
+        {latestIGN && (
+          <div className="flex items-center gap-3.5 rounded-xl border border-border/70 bg-[#0e1218] px-4 py-2.5">
+            <MinecraftAvatar username={latestIGN} type="head" size={36} />
+            <div>
+              <span className="text-[10px] uppercase tracking-wider font-mono text-muted-foreground block font-bold">
+                Linked Java IGN
+              </span>
+              <span className="text-xs font-bold font-mono text-primary">
+                {latestIGN}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Applications List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-            <FileText className="h-4 w-4 text-primary" />
-            Your Staff Applications ({applications.length})
-          </h2>
+          <h3 className="text-lg font-bold text-white font-mono uppercase tracking-tight flex items-center gap-2">
+            <FileText className="h-4 w-4 text-primary" /> Application History
+          </h3>
+          <span className="text-xs text-muted-foreground font-mono">
+            {applications.length} Total Record(s)
+          </span>
         </div>
 
         {applications.length === 0 ? (
-          <EmptyState
-            title="No staff applications submitted yet"
-            description="You haven't submitted any applications. Apply today to become a Tier Tester, Moderator, or Event Staff member."
-            actionHref="/apply"
-            actionLabel="Start Your Application"
-          />
+          <div className="rounded-2xl border border-border/70 bg-[#121721] p-12 text-center space-y-4">
+            <div className="mx-auto h-12 w-12 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
+              <Swords className="h-6 w-6" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-mono font-bold text-white text-base">No Applications Found</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                You haven't submitted a staff application for Vortex Tiers yet. Start a new submission to join the team.
+              </p>
+            </div>
+            {canStartNew && (
+              <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold text-xs">
+                <Link href="/apply">Start First Application</Link>
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="space-y-4">
             {applications.map((app) => (
-              <Card key={app.id} className="border-border/80 bg-card/80 hover:border-border transition-all">
-                <CardContent className="p-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-sm text-primary">
-                        {app.id}
-                      </span>
-                      <StatusBadge status={app.status} />
-                      {app.mode && (
-                        <ModeBadge slug={app.mode.slug} name={app.mode.name} />
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      Created: {formatDate(app.createdAt)}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+              <div
+                key={app.id}
+                className="rounded-2xl border border-border/80 bg-[#121721] p-5 sm:p-6 transition-all hover:border-border space-y-4 shadow-md"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
+                  <div className="flex items-center gap-3">
+                    {app.minecraftUsername && (
+                      <MinecraftAvatar username={app.minecraftUsername} size={36} />
+                    )}
                     <div>
-                      <span className="text-xs text-muted-foreground block">Applied Position</span>
-                      <span className="font-bold text-foreground">{app.position?.name || "Staff"}</span>
-                    </div>
-
-                    <div>
-                      <span className="text-xs text-muted-foreground block">Minecraft Username</span>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <MinecraftAvatar username={app.minecraftUsername} size={18} />
-                        <span className="font-mono font-semibold text-foreground">
-                          {app.minecraftUsername || "Not provided"}
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-sm text-white">
+                          {app.position?.name || "General Staff"}
+                        </span>
+                        <span className="font-mono text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
+                          {app.id}
                         </span>
                       </div>
-                    </div>
-
-                    <div>
-                      <span className="text-xs text-muted-foreground block">Submission Timestamp</span>
-                      <span className="font-medium text-foreground">
-                        {app.submittedAt ? formatDate(app.submittedAt) : "Not submitted (Draft)"}
+                      <span className="text-xs text-muted-foreground font-mono block mt-0.5">
+                        Created {formatDate(app.createdAt)} {app.submittedAt && `• Submitted ${formatDate(app.submittedAt)}`}
                       </span>
                     </div>
                   </div>
 
-                  {/* Decision Remarks / Rejection Feedback if reviewed */}
-                  {app.status === "ACCEPTED" && app.acceptanceMessage && (
-                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-200">
-                      <strong className="block mb-1 text-emerald-300 font-bold">Staff Acceptance Remarks:</strong>
-                      "{app.acceptanceMessage}"
-                    </div>
-                  )}
-
-                  {app.status === "REJECTED" && app.rejectionReason && (
-                    <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-200">
-                      <strong className="block mb-1 text-red-300 font-bold">Reviewer Feedback:</strong>
-                      "{app.rejectionReason}"
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-xs text-muted-foreground">
-                      {app.status === "DRAFT"
-                        ? "Draft is automatically saved. Complete submission to queue for review."
-                        : app.status === "SUBMITTED"
-                        ? "Application is currently in queue awaiting reviewer assignment."
-                        : app.status === "UNDER_REVIEW"
-                        ? "A staff member is actively reviewing your application."
-                        : "Review decision finalized."}
-                    </span>
-
-                    {app.status === "DRAFT" || app.status === "NEEDS_CHANGES" ? (
-                      <Button asChild size="sm" className="gap-1.5 font-bold">
-                        <Link href={`/apply/${app.id}`}>
-                          Continue Application <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button asChild variant="outline" size="sm" className="gap-1.5">
-                        <Link href={`/apply/${app.id}`}>
-                          View Details <ExternalLink className="h-3.5 w-3.5" />
-                        </Link>
-                      </Button>
+                  <div className="flex items-center gap-3">
+                    {app.mode && (
+                      <ModeBadge slug={app.mode.slug} name={app.mode.name} />
                     )}
+                    <StatusBadge status={app.status} />
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+
+                {/* Review Notes / Decision Feedback for applicant */}
+                {(app.decisionReason || app.acceptanceMessage || app.rejectionReason) && (app.status === "ACCEPTED" || app.status === "REJECTED") && (
+                  <div className="rounded-xl border border-border/70 bg-[#0e1218] p-3.5 space-y-1">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-primary font-bold">
+                      Staff Decision Feedback
+                    </span>
+                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap font-sans">
+                      {app.acceptanceMessage || app.rejectionReason || app.decisionReason}
+                    </p>
+                  </div>
+                )}
+
+                {/* Action button */}
+                <div className="flex justify-end pt-1">
+                  {app.status === "DRAFT" ? (
+                    <Button asChild size="sm" className="bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs">
+                      <Link href={`/apply/${app.id}`}>
+                        Resume Editing <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button asChild size="sm" variant="outline" className="font-mono text-xs border-border/80 bg-secondary/30 hover:bg-secondary/70">
+                      <Link href={`/apply/${app.id}`}>
+                        View Submission Snapshot <ExternalLink className="h-3.5 w-3.5 ml-1" />
+                      </Link>
+                    </Button>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         )}

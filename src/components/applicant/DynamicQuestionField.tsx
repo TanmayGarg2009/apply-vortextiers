@@ -2,9 +2,6 @@
 
 import React from "react";
 import { QuestionData } from "@/types";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { MinecraftAvatar } from "@/components/shared/MinecraftAvatar";
 
 interface DynamicQuestionFieldProps {
@@ -31,147 +28,152 @@ export function DynamicQuestionField({
       updated = current.filter((o) => o !== option);
     } else {
       if (question.maxSelections && current.length >= question.maxSelections) {
-        return; // Max reached
+        return;
       }
       updated = [...current, option];
     }
     onChange(value, updated);
   };
 
+  const isSelected = (opt: string) => (selectedOptions || []).includes(opt);
+
   return (
-    <div className="space-y-2.5 rounded-xl border border-border/70 bg-card/60 p-5 transition-all focus-within:border-border">
-      {/* Title & Help Text */}
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-bold text-foreground flex items-center justify-between">
-          <span className="flex items-center gap-1.5">
-            {question.title}
-            {question.required && <span className="text-destructive font-mono">*</span>}
-          </span>
-          {question.type === "PARAGRAPH" && question.maxLength && (
-            <span className={`text-xs font-mono ${currentLength > question.maxLength ? "text-destructive font-bold" : "text-muted-foreground"}`}>
-              {currentLength} / {question.maxLength}
+    <div className="space-y-3">
+      {/* Field based on type */}
+      {question.type === "SHORT_TEXT" && (
+        <div className="relative">
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value, selectedOptions)}
+            placeholder="Enter short response..."
+            maxLength={question.maxLength || 200}
+            className="w-full rounded-xl border border-border bg-[#121721] px-4 py-2.5 text-xs text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono transition-all"
+          />
+          {question.maxLength && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted-foreground">
+              {currentLength}/{question.maxLength}
             </span>
           )}
-        </label>
-        {question.description && (
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {question.description}
-          </p>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Field Input based on Type */}
-      <div className="pt-1">
-        {question.type === "SHORT_TEXT" && (
-          <Input
+      {question.type === "PARAGRAPH" && (
+        <div className="space-y-1.5">
+          <textarea
             value={value}
             onChange={(e) => onChange(e.target.value, selectedOptions)}
-            placeholder="Your answer..."
-            maxLength={question.maxLength || undefined}
-          />
-        )}
-
-        {question.type === "PARAGRAPH" && (
-          <Textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value, selectedOptions)}
-            placeholder="Type your detailed response here..."
+            placeholder="Type your thorough explanation here..."
             rows={4}
-            maxLength={question.maxLength || undefined}
+            maxLength={question.maxLength || 2000}
+            className="w-full rounded-xl border border-border bg-[#121721] p-3 text-xs text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-sans leading-relaxed transition-all resize-y"
           />
-        )}
-
-        {question.type === "MINECRAFT_USERNAME" && (
-          <div className="flex items-center gap-3">
-            <MinecraftAvatar username={value} size={40} />
-            <div className="flex-1">
-              <Input
-                value={value}
-                onChange={(e) => onChange(e.target.value.trim(), selectedOptions)}
-                placeholder="e.g. Minikloon"
-                maxLength={16}
-                className="font-mono font-medium"
-              />
-            </div>
+          <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground">
+            <span>Minimum detail recommended</span>
+            <span>
+              {currentLength} / {question.maxLength || 2000} chars
+            </span>
           </div>
-        )}
+        </div>
+      )}
 
-        {question.type === "URL" && (
-          <Input
-            type="url"
+      {question.type === "MINECRAFT_USERNAME" && (
+        <div className="flex items-center gap-3">
+          <MinecraftAvatar username={value} size={36} />
+          <input
+            type="text"
             value={value}
-            onChange={(e) => onChange(e.target.value, selectedOptions)}
-            placeholder="https://..."
+            onChange={(e) => onChange(e.target.value.trim(), selectedOptions)}
+            placeholder="Java IGN (e.g. ClownPierce)"
+            maxLength={16}
+            className="w-full rounded-xl border border-border bg-[#121721] px-4 py-2.5 text-xs text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
           />
-        )}
+        </div>
+      )}
 
-        {question.type === "NUMBER" && (
-          <Input
-            type="number"
-            value={value}
-            onChange={(e) => onChange(e.target.value, selectedOptions)}
-            min={question.minNumber !== null && question.minNumber !== undefined ? question.minNumber : undefined}
-            max={question.maxNumber !== null && question.maxNumber !== undefined ? question.maxNumber : undefined}
-            placeholder="0"
-          />
-        )}
+      {question.type === "URL" && (
+        <input
+          type="url"
+          value={value}
+          onChange={(e) => onChange(e.target.value, selectedOptions)}
+          placeholder="https://youtube.com/watch?v=... or medal.tv/..."
+          className="w-full rounded-xl border border-border bg-[#121721] px-4 py-2.5 text-xs text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+        />
+      )}
 
-        {question.type === "MULTIPLE_CHOICE" && question.options && (
-          <div className="space-y-2 pt-1">
-            {question.options.map((opt) => (
-              <label
+      {question.type === "MULTIPLE_CHOICE" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {(question.options || []).map((opt) => {
+            const active = value === opt;
+            return (
+              <button
                 key={opt}
-                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-all ${
-                  value === opt
-                    ? "border-primary/60 bg-primary/10 text-foreground font-semibold"
-                    : "border-border/80 bg-secondary/30 text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                type="button"
+                onClick={() => onChange(opt, selectedOptions)}
+                className={`flex items-center justify-between rounded-xl border p-3 text-left transition-all cursor-pointer font-mono text-xs ${
+                  active
+                    ? "border-primary bg-primary/15 text-primary font-bold shadow-sm"
+                    : "border-border/70 bg-[#121721] text-muted-foreground hover:border-border hover:text-white"
                 }`}
               >
-                <input
-                  type="radio"
-                  name={`q_${question.id}`}
-                  value={opt}
-                  checked={value === opt}
-                  onChange={() => onChange(opt, selectedOptions)}
-                  className="h-4 w-4 text-primary accent-primary"
-                />
                 <span>{opt}</span>
-              </label>
-            ))}
-          </div>
-        )}
-
-        {question.type === "MULTIPLE_SELECT" && question.options && (
-          <div className="space-y-2 pt-1">
-            {question.options.map((opt) => {
-              const isChecked = (selectedOptions || []).includes(opt);
-              return (
-                <label
-                  key={opt}
-                  onClick={() => handleOptionToggle(opt)}
-                  className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-all ${
-                    isChecked
-                      ? "border-primary/60 bg-primary/10 text-foreground font-semibold"
-                      : "border-border/80 bg-secondary/30 text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                <div
+                  className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                    active ? "border-primary bg-primary" : "border-border"
                   }`}
                 >
-                  <Checkbox checked={isChecked} onCheckedChange={() => handleOptionToggle(opt)} />
-                  <span>{opt}</span>
-                </label>
-              );
-            })}
-            {question.minSelections && (
-              <p className="text-[11px] text-muted-foreground">
-                Please select at least {question.minSelections} option{question.minSelections > 1 ? "s" : ""}.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+                  {active && <div className="h-1.5 w-1.5 rounded-full bg-black" />}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {question.type === "MULTIPLE_SELECT" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {(question.options || []).map((opt) => {
+            const active = isSelected(opt);
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => handleOptionToggle(opt)}
+                className={`flex items-center justify-between rounded-xl border p-3 text-left transition-all cursor-pointer font-mono text-xs ${
+                  active
+                    ? "border-primary bg-primary/15 text-primary font-bold shadow-sm"
+                    : "border-border/70 bg-[#121721] text-muted-foreground hover:border-border hover:text-white"
+                }`}
+              >
+                <span>{opt}</span>
+                <div
+                  className={`h-4 w-4 rounded border flex items-center justify-center ${
+                    active ? "border-primary bg-primary text-black font-bold text-[10px]" : "border-border"
+                  }`}
+                >
+                  {active && "✓"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {question.type === "NUMBER" && (
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(e.target.value, selectedOptions)}
+          placeholder="Enter numeric value..."
+          min={question.minNumber ?? undefined}
+          max={question.maxNumber ?? undefined}
+          className="w-full rounded-xl border border-border bg-[#121721] px-4 py-2.5 text-xs text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+        />
+      )}
 
       {error && (
-        <p className="text-xs font-semibold text-destructive mt-1 flex items-center gap-1">
-          <span>⚠️</span> {error}
+        <p className="text-[11px] font-mono text-red-400">
+          {error}
         </p>
       )}
     </div>

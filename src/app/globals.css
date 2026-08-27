@@ -1,33 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
     --background: 220 20% 14%;
     --foreground: 220 15% 90%;
+
     --card: 220 18% 18%;
     --card-foreground: 220 15% 90%;
+
     --popover: 220 18% 18%;
     --popover-foreground: 220 15% 90%;
+
     --primary: 45 100% 55%;
     --primary-foreground: 220 20% 10%;
+
     --secondary: 220 15% 22%;
     --secondary-foreground: 220 15% 80%;
+
     --muted: 220 15% 20%;
     --muted-foreground: 220 10% 55%;
+
     --accent: 220 15% 25%;
     --accent-foreground: 220 15% 90%;
+
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
+
     --border: 220 15% 25%;
     --input: 220 15% 25%;
     --ring: 45 100% 55%;
+
     --radius: 0.75rem;
 
-    /* Vortex Tiers Ecosystem Badges */
+    /* Tier colors */
     --tier-ht1: 130 60% 45%;
     --tier-ht2: 160 55% 40%;
     --tier-ht3: 180 50% 42%;
@@ -38,20 +47,25 @@
     --tier-lt4: 0 75% 55%;
     --tier-lt5: 330 60% 50%;
 
-    /* Metals & Accents */
+    /* Region colors */
+    --region-na: 0 70% 55%;
+    --region-eu: 130 60% 50%;
+    --region-as: 280 60% 60%;
+    --region-me: 45 90% 55%;
+    --region-au: 25 80% 55%;
+
+    /* Nav */
+    --nav: 220 20% 11%;
+    --nav-foreground: 220 15% 75%;
+
+    /* Rank shimmer */
     --gold: 51 100% 50%;
     --silver: 220 10% 70%;
     --bronze: 25 60% 50%;
 
-    /* Sidebar */
-    --sidebar-background: 220 22% 12%;
-    --sidebar-foreground: 220 15% 85%;
-    --sidebar-primary: 45 100% 55%;
-    --sidebar-primary-foreground: 220 20% 10%;
-    --sidebar-accent: 220 18% 20%;
-    --sidebar-accent-foreground: 220 15% 95%;
-    --sidebar-border: 220 15% 20%;
-    --sidebar-ring: 45 100% 55%;
+    /* Tier column backgrounds */
+    --tier-col-ht: 220 15% 22%;
+    --tier-col-lt: 220 25% 14%;
   }
 
   * {
@@ -60,72 +74,89 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[#0f1319] text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
-    background-color: #0f1319;
+    background-image: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 158, 11, 0.08), transparent 70%),
+      radial-gradient(circle at 100% 0%, rgba(139, 92, 246, 0.05), transparent 40%),
+      radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.04), transparent 40%);
+    background-attachment: fixed;
   }
 
-  code, kbd, samp, pre {
+  code, kbd, samp, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
 }
 
-/* Custom UI Utilities */
-.vt-card {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border) / 0.7);
-  border-radius: var(--radius);
-  transition: all 0.2s ease-in-out;
+@layer utilities {
+  .tier-badge {
+    @apply inline-flex items-center justify-center text-[11px] font-black rounded-md px-2 py-1 min-w-[40px] tracking-wide;
+  }
+
+  .bg-gold {
+    background-color: hsl(var(--gold));
+  }
+  .bg-silver {
+    background-color: hsl(var(--silver));
+  }
+  .bg-bronze {
+    background-color: hsl(var(--bronze));
+  }
+
+  .bg-tier-ht1 { background-color: hsl(var(--tier-ht1)); }
+  .bg-tier-ht2 { background-color: hsl(var(--tier-ht2)); }
+  .bg-tier-ht3 { background-color: hsl(var(--tier-ht3)); }
+  .bg-tier-ht4 { background-color: hsl(var(--tier-ht4)); }
+  .bg-tier-lt1 { background-color: hsl(var(--tier-lt1)); }
+  .bg-tier-lt2 { background-color: hsl(var(--tier-lt2)); }
+  .bg-tier-lt3 { background-color: hsl(var(--tier-lt3)); }
+  .bg-tier-lt4 { background-color: hsl(var(--tier-lt4)); }
+  .bg-tier-lt5 { background-color: hsl(var(--tier-lt5)); }
+
+  .border-tier-ht1\/50 { border-color: hsla(var(--tier-ht1), 0.5); }
+  .border-tier-ht2\/50 { border-color: hsla(var(--tier-ht2), 0.5); }
+  .border-tier-ht3\/50 { border-color: hsla(var(--tier-ht3), 0.5); }
+  .border-tier-ht4\/50 { border-color: hsla(var(--tier-ht4), 0.5); }
+  .border-tier-lt1\/50 { border-color: hsla(var(--tier-lt1), 0.5); }
+  .border-tier-lt2\/50 { border-color: hsla(var(--tier-lt2), 0.5); }
+  .border-tier-lt3\/50 { border-color: hsla(var(--tier-lt3), 0.5); }
+  .border-tier-lt4\/50 { border-color: hsla(var(--tier-lt4), 0.5); }
+  .border-tier-lt5\/50 { border-color: hsla(var(--tier-lt5), 0.5); }
 }
 
-.vt-card-elevated {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+/* Rank badge shine animation */
+@keyframes rank-shine {
+  0%, 70%, 100% {
+    transform: translateX(-120%) skewX(-20deg);
+    opacity: 0;
+  }
+  78% {
+    transform: translateX(-50%) skewX(-20deg);
+    opacity: 0.8;
+  }
+  86% {
+    transform: translateX(250%) skewX(-20deg);
+    opacity: 0;
+  }
 }
 
-.vt-card:hover {
-  border-color: hsl(var(--border));
+.rank-badge-shine {
+  animation: rank-shine 7s ease-in-out infinite;
 }
 
-.tier-badge {
-  display: inline-flex;
-  min-width: 44px;
-  align-items: center;
-  justify-content: center;
-  border-radius: calc(var(--radius) - 4px);
-  padding: 0.25rem 0.5rem;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  font-family: 'JetBrains Mono', monospace;
-  text-transform: uppercase;
-}
-
-/* Glass & Glow */
-.vt-glow-gold {
-  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.25);
-}
-
-.vt-glow-emerald {
-  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
-}
-
-/* Subtle Scrollbars */
+/* Custom Sleek Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: #0d1117;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: #252d3a;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: #384457;
 }

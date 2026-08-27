@@ -1,45 +1,41 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
 
 interface ModeBadgeProps {
   slug: string;
   name: string;
   className?: string;
+  showIcon?: boolean;
 }
 
-export function ModeBadge({ slug, name, className }: ModeBadgeProps) {
-  const getModeStyles = (slug: string) => {
-    switch (slug.toLowerCase()) {
-      case "crystal":
-        return "border-purple-500/40 bg-purple-500/15 text-purple-300";
-      case "neth-pot":
-      case "netherite-pot":
-        return "border-rose-500/40 bg-rose-500/15 text-rose-300";
-      case "pot":
-        return "border-emerald-500/40 bg-emerald-500/15 text-emerald-300";
-      case "sword":
-        return "border-blue-500/40 bg-blue-500/15 text-blue-300";
-      case "uhc":
-        return "border-amber-500/40 bg-amber-500/15 text-amber-300";
-      case "smp":
-        return "border-teal-500/40 bg-teal-500/15 text-teal-300";
-      case "axe":
-        return "border-orange-500/40 bg-orange-500/15 text-orange-300";
-      case "mace":
-        return "border-indigo-500/40 bg-indigo-500/15 text-indigo-300";
-      default:
-        return "border-border bg-secondary/50 text-foreground";
-    }
-  };
+const modeIconMap: Record<string, string> = {
+  crystal: "/icons/vanilla.svg",
+  vanilla: "/icons/vanilla.svg",
+  "neth-pot": "/icons/nethop.svg",
+  "netherite-pot": "/icons/nethop.svg",
+  nethop: "/icons/nethop.svg",
+  pot: "/icons/pot.svg",
+  sword: "/icons/sword.svg",
+  uhc: "/icons/uhc.svg",
+  smp: "/icons/smp.svg",
+  axe: "/icons/axe.svg",
+  mace: "/icons/mace.svg",
+  ltm: "/icons/ltm.svg",
+  overall: "/icons/overall.svg",
+};
+
+export function ModeBadge({ slug, name, className = "", showIcon = true }: ModeBadgeProps) {
+  const icon = modeIconMap[slug.toLowerCase()] || "/icons/sword.svg";
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-bold font-mono tracking-wide ${getModeStyles(
-        slug
-      )} ${className || ""}`}
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-secondary/40 px-2.5 py-1 text-xs font-bold text-foreground font-mono transition-all hover:border-primary/50 hover:bg-secondary/70 ${className}`}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-      {name}
+      {showIcon && (
+        <div className="h-4 w-4 rounded-full bg-secondary/80 flex items-center justify-center flex-shrink-0">
+          <img src={icon} alt={name} className="h-3 w-3 object-contain" />
+        </div>
+      )}
+      <span>{name}</span>
     </span>
   );
 }

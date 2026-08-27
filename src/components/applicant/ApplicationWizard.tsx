@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AutosavePill } from "./AutosavePill";
 import { DynamicQuestionField } from "./DynamicQuestionField";
 import { EvidenceUploader } from "./EvidenceUploader";
+import { PlayerTierPreview } from "./PlayerTierPreview";
 import { ModeBadge } from "@/components/shared/ModeBadge";
 import { MinecraftAvatar } from "@/components/shared/MinecraftAvatar";
 import {
@@ -31,6 +32,10 @@ import {
   AlertTriangle,
   Loader2,
   Send,
+  Sparkles,
+  Swords,
+  Layers,
+  FileCheck,
 } from "lucide-react";
 
 interface ApplicationWizardProps {
@@ -53,7 +58,7 @@ export function ApplicationWizard({
   const [positionId, setPositionId] = useState(initialApplication.positionId || positions[0]?.id || "");
   const [modeId, setModeId] = useState(initialApplication.modeId || "");
   const [minecraftUsername, setMinecraftUsername] = useState(initialApplication.minecraftUsername || "");
-  
+
   // Answers state mapping: questionId -> { value, selectedOptions }
   const [answers, setAnswers] = useState<Record<string, { value: string; selectedOptions?: string[] }>>(() => {
     const map: Record<string, { value: string; selectedOptions?: string[] }> = {};
@@ -136,7 +141,12 @@ export function ApplicationWizard({
 
   const handleSubmit = async () => {
     if (!confirmAccuracy) {
-      setSubmitError("Please check the confirmation box to verify your submission.");
+      setSubmitError("Please confirm your application details before submitting.");
+      return;
+    }
+
+    if (!minecraftUsername.trim()) {
+      setSubmitError("Please specify your Minecraft Java IGN in Step 1.");
       return;
     }
 
@@ -144,7 +154,7 @@ export function ApplicationWizard({
     setSubmitError(null);
 
     try {
-      // 1. Perform final sync save
+      // 1. Final sync save
       const payloadAnswers = Object.entries(answers).map(([qId, data]) => ({
         questionId: qId,
         value: data.value,
@@ -186,11 +196,11 @@ export function ApplicationWizard({
   const selectedMode = gameModes.find((m) => m.id === modeId);
 
   const steps = [
-    { num: 1, title: "Applicant Identity", icon: User },
-    { num: 2, title: "Position & Mode", icon: Shield },
-    { num: 3, title: "Questions", icon: HelpCircle },
-    { num: 4, title: "Evidence & Media", icon: UploadCloud },
-    { num: 5, title: "Review & Submit", icon: CheckCircle2 },
+    { num: 1, title: "Identity", subtitle: "Discord & Minecraft IGN", icon: User },
+    { num: 2, title: "Role & Mode", subtitle: "Position Selection", icon: Shield },
+    { num: 3, title: "Assessment", subtitle: "Written Questions", icon: HelpCircle },
+    { num: 4, title: "Evidence", subtitle: "Media & Clips", icon: UploadCloud },
+    { num: 5, title: "Review", subtitle: "Final Verification", icon: CheckCircle2 },
   ];
 
   return (
@@ -199,23 +209,23 @@ export function ApplicationWizard({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/70 pb-5">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-black tracking-tight text-white">
+            <h1 className="text-2xl font-black tracking-tight text-white font-mono uppercase">
               Staff Application
             </h1>
             <span className="font-mono text-xs font-bold text-primary px-2.5 py-0.5 rounded border border-primary/40 bg-primary/10">
               {initialApplication.id}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Vortex Tiers staff recruitment application form. Complete each section accurately.
+          <p className="text-xs text-muted-foreground mt-1 font-mono">
+            Vortex Tiers recruitment protocol. Autosaving changes live.
           </p>
         </div>
 
         <AutosavePill status={autosaveStatus} lastSavedAt={lastSavedAt} />
       </div>
 
-      {/* Step Stepper Progress Bar */}
-      <div className="grid grid-cols-5 gap-2 sm:gap-4">
+      {/* Stepped Tactical Header */}
+      <div className="grid grid-cols-5 gap-2 sm:gap-3">
         {steps.map((s) => {
           const isPassed = currentStep > s.num;
           const isCurrent = currentStep === s.num;
@@ -225,18 +235,18 @@ export function ApplicationWizard({
             <button
               key={s.num}
               onClick={() => setCurrentStep(s.num)}
-              className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border text-center transition-all ${
+              className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                 isCurrent
-                  ? "border-primary bg-primary/10 text-primary font-bold shadow-sm"
+                  ? "border-primary bg-primary/15 text-primary font-bold shadow-md shadow-primary/10"
                   : isPassed
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-semibold"
-                  : "border-border/60 bg-secondary/30 text-muted-foreground hover:bg-secondary/60"
+                  : "border-border/60 bg-[#121721] text-muted-foreground hover:border-border hover:bg-[#161c28]"
               }`}
             >
               <div className="flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold font-mono">
-                {isPassed ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-3.5 w-3.5" />}
+                {isPassed ? <CheckCircle2 className="h-4 w-4" /> : <span className="text-xs">{s.num}</span>}
               </div>
-              <span className="text-[11px] font-medium hidden sm:inline leading-tight">
+              <span className="text-xs font-bold font-mono truncate w-full block">
                 {s.title}
               </span>
             </button>
@@ -244,23 +254,23 @@ export function ApplicationWizard({
         })}
       </div>
 
-      {/* STEP 1: APPLICANT IDENTITY */}
+      {/* STEP 1: APPLICANT IDENTITY & MINECRAFT LOOKUP */}
       {currentStep === 1 && (
-        <Card className="border-border/80 bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <User className="h-5 w-5 text-primary" />
-              Step 1 — Applicant Identity & Minecraft Profile
+        <Card className="border-border/80 bg-[#121721] shadow-xl">
+          <CardHeader className="border-b border-border/50 pb-4">
+            <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
+              <User className="h-5 w-5 text-primary" /> Step 1: Applicant Profile
             </CardTitle>
-            <CardDescription>
-              Discord information is automatically verified through OAuth. Enter your Minecraft Java IGN below.
+            <CardDescription className="text-xs text-muted-foreground">
+              Verify your authenticated Discord passport and link your Minecraft Java Edition username.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Discord Information Card */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-border/80 bg-secondary/30 p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full overflow-hidden border border-border bg-secondary flex items-center justify-center font-bold">
+
+          <CardContent className="space-y-6 pt-6">
+            {/* Authenticated Discord Passport */}
+            <div className="rounded-xl border border-border/80 bg-[#0e1218] p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3.5">
+                <div className="h-12 w-12 rounded-full overflow-hidden border border-border flex items-center justify-center bg-[#5865F2]/20 text-[#5865F2] font-bold text-sm">
                   {user.discordAvatar ? (
                     <img
                       src={`https://cdn.discordapp.com/avatars/${user.discordId}/${user.discordAvatar}.png`}
@@ -271,47 +281,53 @@ export function ApplicationWizard({
                     user.discordUsername.substring(0, 2).toUpperCase()
                   )}
                 </div>
-                <div className="flex flex-col">
+                <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-foreground text-sm">
+                    <span className="font-bold text-sm text-white font-mono">
                       {user.discordGlobalName || user.discordUsername}
                     </span>
-                    <Badge variant="outline" className="text-[10px] font-mono">
+                    <span className="rounded bg-[#5865F2]/15 border border-[#5865F2]/30 px-1.5 py-0.5 text-[10px] font-bold text-[#5865F2] font-mono">
                       Discord Verified
-                    </Badge>
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    ID: {user.discordId} • {user.email}
+                  <span className="text-xs text-muted-foreground font-mono block">
+                    ID: {user.discordId} • {user.email || "No Email Provided"}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Minecraft Username Field */}
-            <div className="space-y-2 rounded-xl border border-border/80 bg-card/60 p-5">
-              <label className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                Minecraft Java In-Game Name (IGN)
-                <span className="text-destructive font-mono">*</span>
+            {/* Minecraft Username Input & Live Tier Preview */}
+            <div className="space-y-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
+                Minecraft Java IGN <span className="text-red-400">*</span>
               </label>
+              <input
+                type="text"
+                value={minecraftUsername}
+                onChange={(e) => {
+                  setMinecraftUsername(e.target.value);
+                  triggerAutosave();
+                }}
+                placeholder="e.g. ClownPierce, IntelEdits..."
+                className="w-full rounded-xl border border-border bg-[#0e1218] px-4 py-3 text-sm text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              />
               <p className="text-xs text-muted-foreground">
-                Enter your exact Minecraft Java Edition in-game name. Your skin avatar will preview automatically.
+                Enter your exact in-game name. We automatically verify your skin and check live Vortex tier rankings.
               </p>
-              <div className="flex items-center gap-3 pt-1">
-                <MinecraftAvatar username={minecraftUsername} size={42} />
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={minecraftUsername}
-                    onChange={(e) => {
-                      setMinecraftUsername(e.target.value.trim());
-                      triggerAutosave();
-                    }}
-                    placeholder="e.g. Minikloon"
-                    maxLength={16}
-                    className="flex h-10 w-full rounded-lg border border-border bg-secondary/40 px-3.5 py-2 text-sm font-mono font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </div>
-              </div>
+
+              {/* Live Tier Preview Component */}
+              <PlayerTierPreview username={minecraftUsername} />
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-border/50">
+              <Button
+                onClick={() => setCurrentStep(2)}
+                disabled={!minecraftUsername.trim()}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
+              >
+                Proceed to Role Selection <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -319,293 +335,357 @@ export function ApplicationWizard({
 
       {/* STEP 2: POSITION & GAME MODE */}
       {currentStep === 2 && (
-        <Card className="border-border/80 bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              Step 2 — Staff Position & Primary Game Mode
+        <Card className="border-border/80 bg-[#121721] shadow-xl">
+          <CardHeader className="border-b border-border/50 pb-4">
+            <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" /> Step 2: Role & Game Mode Selection
             </CardTitle>
-            <CardDescription>
-              Select the staff position you are applying for and your primary PvP specialty mode.
+            <CardDescription className="text-xs text-muted-foreground">
+              Choose the staff role you are applying for and your primary Minecraft PvP discipline.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Position Selection */}
+
+          <CardContent className="space-y-6 pt-6">
+            {/* Position Cards */}
             <div className="space-y-3">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-                Select Staff Role
+              <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
+                Desired Staff Role <span className="text-red-400">*</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {positions.map((pos) => {
                   const isSelected = positionId === pos.id;
                   return (
-                    <div
+                    <button
                       key={pos.id}
+                      type="button"
                       onClick={() => {
                         setPositionId(pos.id);
                         triggerAutosave();
                       }}
-                      className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                      className={`text-left rounded-xl border p-4 transition-all cursor-pointer ${
                         isSelected
-                          ? "border-primary bg-primary/10 shadow-sm"
-                          : "border-border/80 bg-secondary/30 hover:bg-secondary/60"
+                          ? "border-primary bg-primary/10 shadow-md shadow-primary/10"
+                          : "border-border/70 bg-[#0e1218] hover:border-border hover:bg-[#161c28]"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm text-foreground">{pos.name}</span>
+                        <span className={`font-bold text-sm font-mono ${isSelected ? "text-primary" : "text-white"}`}>
+                          {pos.name}
+                        </span>
                         {pos.requiredEvidence && (
-                          <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30 font-mono">
-                            Evidence Required
-                          </Badge>
+                          <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold text-amber-400 font-mono">
+                            Clips Required
+                          </span>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
                         {pos.description}
                       </p>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Game Mode Selection */}
-            <div className="space-y-3 pt-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-                Primary PvP Game Mode (Optional / Specialty)
+            {/* Game Mode Selector with Official SVG Icons */}
+            <div className="space-y-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
+                Primary PvP Discipline / Gamemode <span className="text-muted-foreground font-normal">(Optional for general mod)</span>
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {gameModes.map((mode) => {
                   const isSelected = modeId === mode.id;
                   return (
-                    <div
+                    <button
                       key={mode.id}
+                      type="button"
                       onClick={() => {
                         setModeId(isSelected ? "" : mode.id);
                         triggerAutosave();
                       }}
-                      className={`cursor-pointer rounded-lg border p-3 text-center transition-all ${
+                      className={`flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all cursor-pointer ${
                         isSelected
-                          ? "border-primary bg-primary/15 font-bold shadow-sm"
-                          : "border-border/80 bg-secondary/30 text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                          ? "border-primary bg-primary/15 text-white font-bold"
+                          : "border-border/70 bg-[#0e1218] text-muted-foreground hover:border-border hover:text-white"
                       }`}
                     >
-                      <ModeBadge slug={mode.slug} name={mode.name} className="mx-auto" />
-                    </div>
+                      <div className="h-6 w-6 rounded bg-secondary/80 flex items-center justify-center p-1 flex-shrink-0">
+                        <img
+                          src={
+                            mode.slug === "crystal"
+                              ? "/icons/vanilla.svg"
+                              : mode.slug === "neth-pot"
+                              ? "/icons/nethop.svg"
+                              : `/icons/${mode.slug}.svg`
+                          }
+                          alt={mode.name}
+                          className="h-full w-full object-contain"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = "/icons/sword.svg";
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs font-mono font-bold truncate">{mode.name}</span>
+                    </button>
                   );
                 })}
               </div>
+            </div>
+
+            <div className="flex justify-between pt-4 border-t border-border/50">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep(1)}
+                className="font-mono text-xs"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Back
+              </Button>
+              <Button
+                onClick={() => setCurrentStep(3)}
+                disabled={!positionId}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
+              >
+                Proceed to Questions <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 3: QUESTIONS */}
+      {/* STEP 3: DYNAMIC ASSESSMENT QUESTIONS */}
       {currentStep === 3 && (
-        <Card className="border-border/80 bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <HelpCircle className="h-5 w-5 text-primary" />
-              Step 3 — Application Questions
-            </CardTitle>
-            <CardDescription>
-              Answer all questions thoroughly. Answers are autosaved as you type.
-            </CardDescription>
+        <Card className="border-border/80 bg-[#121721] shadow-xl">
+          <CardHeader className="border-b border-border/50 pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
+                  <HelpCircle className="h-5 w-5 text-primary" /> Step 3: Candidate Assessment
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">
+                  Answer the evaluation questions specific to {selectedPosition?.name || "your role"}.
+                </CardDescription>
+              </div>
+              <span className="font-mono text-xs text-primary font-bold">
+                {applicableQuestions.length} Questions
+              </span>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {applicableQuestions.map((q) => (
-              <DynamicQuestionField
-                key={q.id}
-                question={q}
-                value={answers[q.id]?.value || ""}
-                selectedOptions={answers[q.id]?.selectedOptions || []}
-                onChange={(val, selectedOpts) => handleAnswerChange(q.id, val, selectedOpts)}
-              />
-            ))}
+
+          <CardContent className="space-y-6 pt-6">
+            {applicableQuestions.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground font-mono text-sm">
+                No custom questions configured for this position. You may proceed directly to Evidence & Submission.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {applicableQuestions.map((q, idx) => (
+                  <div key={q.id} className="rounded-xl border border-border/70 bg-[#0e1218] p-4 space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-primary/15 text-[11px] font-bold text-primary font-mono">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1">
+                        <span className="text-xs font-bold text-white block">
+                          {q.title} {q.required && <span className="text-red-400">*</span>}
+                        </span>
+                        {q.description && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {q.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <DynamicQuestionField
+                      question={q}
+                      value={answers[q.id]?.value || ""}
+                      selectedOptions={answers[q.id]?.selectedOptions || []}
+                      onChange={(val, opts) => handleAnswerChange(q.id, val, opts)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-between pt-4 border-t border-border/50">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep(2)}
+                className="font-mono text-xs"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Back
+              </Button>
+              <Button
+                onClick={() => setCurrentStep(4)}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
+              >
+                Proceed to Evidence <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 4: EVIDENCE UPLOADS */}
+      {/* STEP 4: EVIDENCE & MEDIA */}
       {currentStep === 4 && (
-        <Card className="border-border/80 bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <UploadCloud className="h-5 w-5 text-primary" />
-              Step 4 — Evidence & Gameplay Media
+        <Card className="border-border/80 bg-[#121721] shadow-xl">
+          <CardHeader className="border-b border-border/50 pb-4">
+            <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
+              <UploadCloud className="h-5 w-5 text-primary" /> Step 4: Evidence & PvP Clips
             </CardTitle>
-            <CardDescription>
-              Attach testing footage, screenshots of tiers, or vouches. Files are stored securely in Google Drive.
+            <CardDescription className="text-xs text-muted-foreground">
+              Attach unedited PvP duel recordings, testing footage, or past staff credentials.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+
+          <CardContent className="space-y-6 pt-6">
             <EvidenceUploader
               applicationId={initialApplication.id}
               uploadedFiles={uploadedFiles}
               onUploadSuccess={handleUploadSuccess}
               onFileRemove={handleFileRemove}
-              maxFiles={6}
-              maxFileSizeMb={150}
             />
+
+            <div className="flex justify-between pt-4 border-t border-border/50">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep(3)}
+                className="font-mono text-xs"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Back
+              </Button>
+              <Button
+                onClick={() => setCurrentStep(5)}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
+              >
+                Review & Confirm <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 5: REVIEW & SUBMIT */}
+      {/* STEP 5: FINAL REVIEW & SUBMIT */}
       {currentStep === 5 && (
-        <Card className="border-border/80 bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-              Step 5 — Final Review & Confirmation
+        <Card className="border-border/80 bg-[#121721] shadow-xl">
+          <CardHeader className="border-b border-border/50 pb-4">
+            <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-primary" /> Step 5: Review & Final Submission
             </CardTitle>
-            <CardDescription>
-              Review all details carefully before final submission. Editing is locked once submitted.
+            <CardDescription className="text-xs text-muted-foreground">
+              Inspect your application snapshot. Once submitted, answers become immutable for review.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Summary Review Block */}
-            <div className="rounded-xl border border-border/80 bg-secondary/30 p-5 space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-                Application Summary
-              </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-xs text-muted-foreground block">Position</span>
-                  <span className="font-bold text-foreground">{selectedPosition?.name || "None"}</span>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground block">PvP Mode</span>
-                  <span className="font-bold text-foreground">{selectedMode?.name || "General"}</span>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground block">Minecraft IGN</span>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <MinecraftAvatar username={minecraftUsername} size={20} />
-                    <span className="font-mono font-bold text-foreground">{minecraftUsername || "Not provided"}</span>
+          <CardContent className="space-y-6 pt-6">
+            {/* Applicant Summary Dossier */}
+            <div className="rounded-xl border border-border/80 bg-[#0e1218] p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/50 pb-4">
+                <div className="flex items-center gap-3">
+                  <MinecraftAvatar username={minecraftUsername} type="bust" size={48} />
+                  <div>
+                    <span className="font-mono font-black text-base text-white block">
+                      {minecraftUsername}
+                    </span>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      Discord: {user.discordGlobalName || user.discordUsername} ({user.discordId})
+                    </span>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Answered Questions Breakdown */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-                Completed Responses ({Object.keys(answers).length} / {applicableQuestions.length})
-              </h4>
-              <div className="space-y-2">
-                {applicableQuestions.map((q) => {
-                  const ans = answers[q.id];
-                  const hasAnswer = ans && (ans.value || (ans.selectedOptions && ans.selectedOptions.length > 0));
-
-                  return (
-                    <div
-                      key={q.id}
-                      className="flex items-center justify-between rounded-lg border border-border/70 bg-card/60 p-3 text-sm"
-                    >
-                      <span className="font-medium text-foreground truncate max-w-md">
-                        {q.title}
-                      </span>
-                      {hasAnswer ? (
-                        <span className="text-xs text-emerald-400 font-bold flex items-center gap-1 font-mono">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Answered
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground/60 font-mono">
-                          {q.required ? "Required" : "Optional"}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Attached Files Review */}
-            {uploadedFiles.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-                  Attached Files ({uploadedFiles.length})
-                </h4>
-                <div className="space-y-1.5">
-                  {uploadedFiles.map((f) => (
-                    <div
-                      key={f.id}
-                      className="flex items-center justify-between rounded-lg border border-border/70 bg-card/40 px-3 py-2 text-xs"
-                    >
-                      <span className="font-medium text-foreground truncate">{f.filename}</span>
-                      <span className="text-muted-foreground font-mono">{f.category}</span>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-primary/15 border border-primary/30 px-2.5 py-1 text-xs font-bold text-primary font-mono">
+                    {selectedPosition?.name || "No Position"}
+                  </span>
+                  {selectedMode && (
+                    <ModeBadge slug={selectedMode.slug} name={selectedMode.name} />
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* Required Confirmation Checkbox */}
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-              <label
-                onClick={() => setConfirmAccuracy(!confirmAccuracy)}
-                className="flex cursor-pointer items-start gap-3 text-sm font-medium text-amber-200"
-              >
-                <Checkbox
-                  checked={confirmAccuracy}
-                  onCheckedChange={(checked) => setConfirmAccuracy(!!checked)}
-                  className="mt-0.5"
-                />
-                <span>
-                  I confirm that all information provided in this staff application is accurate, truthful, and represents my own work and experience.
+              {/* Answers Inspection */}
+              <div className="space-y-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                  Recorded Responses ({applicableQuestions.length})
                 </span>
-              </label>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {applicableQuestions.map((q) => {
+                    const ans = answers[q.id];
+                    return (
+                      <div key={q.id} className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-1">
+                        <span className="text-xs font-bold text-white block font-mono">
+                          {q.title}
+                        </span>
+                        <p className="text-xs text-muted-foreground whitespace-pre-wrap font-sans">
+                          {ans?.value || (ans?.selectedOptions && ans.selectedOptions.join(", ")) || "No answer provided"}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Uploads Inspection */}
+              <div className="space-y-1.5 pt-2 border-t border-border/40">
+                <span className="text-xs font-bold text-muted-foreground font-mono">
+                  Attached Clips & Evidence: {uploadedFiles.length} file(s)
+                </span>
+              </div>
+            </div>
+
+            {/* Confirmation Checkbox */}
+            <div className="flex items-start space-x-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <Checkbox
+                id="confirm"
+                checked={confirmAccuracy}
+                onCheckedChange={(c) => setConfirmAccuracy(!!c)}
+                className="mt-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground border-primary"
+              />
+              <div className="space-y-1">
+                <label htmlFor="confirm" className="text-xs font-bold text-white cursor-pointer font-mono">
+                  I confirm all information provided is accurate and authentic.
+                </label>
+                <p className="text-[11px] text-muted-foreground">
+                  I understand that falsifying evidence or tier history will result in immediate blacklisting from Vortex Tiers recruitment.
+                </p>
+              </div>
             </div>
 
             {submitError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive font-semibold">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-400 font-mono flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                 <span>{submitError}</span>
               </div>
             )}
+
+            <div className="flex justify-between pt-4 border-t border-border/50">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep(4)}
+                disabled={submitting}
+                className="font-mono text-xs"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Back
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={submitting || !confirmAccuracy}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-black font-mono text-sm px-6 gap-2 shadow-lg shadow-primary/20"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" /> Submit Application
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Bottom Step Navigation Bar */}
-      <div className="flex items-center justify-between pt-4 border-t border-border/70">
-        <Button
-          variant="outline"
-          onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
-          disabled={currentStep === 1 || submitting}
-          className="gap-2"
-        >
-          <ChevronLeft className="h-4 w-4" /> Previous Step
-        </Button>
-
-        {currentStep < 5 ? (
-          <Button
-            onClick={() => setCurrentStep((prev) => Math.min(5, prev + 1))}
-            className="gap-2 font-bold"
-          >
-            Next Step <ChevronRight className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting || !confirmAccuracy}
-            className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 shadow-sm shadow-emerald-900/30"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Submitting Application...
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                Submit Staff Application
-              </>
-            )}
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
