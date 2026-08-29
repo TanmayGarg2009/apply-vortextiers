@@ -38,6 +38,8 @@ import {
   Globe,
   Flame,
   FileCheck,
+  Eye,
+  Crosshair,
 } from "lucide-react";
 
 interface ApplicationWizardProps {
@@ -61,9 +63,10 @@ export function ApplicationWizard({
   // Sector / Server Selection: Vortex Network vs Vortex Tiers
   const [organization, setOrganization] = useState<"TIERS" | "NETWORK">(() => {
     if (
-      initialApplication.positionId?.includes("mod") ||
       initialApplication.positionId?.includes("trial") ||
-      initialApplication.positionId?.includes("event")
+      initialApplication.positionId?.includes("mod") ||
+      initialApplication.positionId?.includes("admin") ||
+      initialApplication.positionId?.includes("net")
     ) {
       return "NETWORK";
     }
@@ -106,7 +109,7 @@ export function ApplicationWizard({
         }
       } else {
         // Default position selection based on initial organization
-        const defaultTierPos = positions.find((p) => p.slug === "tier-tester" || p.id.includes("tester")) || positions[0];
+        const defaultTierPos = positions.find((p) => p.slug === "tier-tester" || p.slug === "screensharer") || positions[0];
         if (defaultTierPos && !positionId) {
           setPositionId(defaultTierPos.id);
         }
@@ -149,13 +152,29 @@ export function ApplicationWizard({
     }
   };
 
-  // Filter positions by selected organization
+  // Filter positions by selected organization & enabled status
   const availablePositions = useMemo(() => {
     if (organization === "TIERS") {
-      const tierRoles = positions.filter((p) => p.slug === "tier-tester" || p.name.toLowerCase().includes("tier") || p.name.toLowerCase().includes("tester"));
+      const tierRoles = positions.filter(
+        (p) =>
+          (p.slug === "tier-tester" ||
+            p.slug === "screensharer" ||
+            p.slug === "tiers-helper" ||
+            p.name.toLowerCase().includes("tier") ||
+            p.name.toLowerCase().includes("screenshar")) &&
+          p.enabled !== false
+      );
       return tierRoles.length > 0 ? tierRoles : positions;
     } else {
-      const networkRoles = positions.filter((p) => p.slug !== "tier-tester" && !p.name.toLowerCase().includes("tier tester"));
+      // Vortex Network positions (Trial Staff by default, or other open positions)
+      const networkRoles = positions.filter(
+        (p) =>
+          p.slug !== "tier-tester" &&
+          p.slug !== "screensharer" &&
+          p.slug !== "tiers-helper" &&
+          !p.name.toLowerCase().includes("tier tester") &&
+          p.enabled !== false
+      );
       return networkRoles.length > 0 ? networkRoles : positions;
     }
   }, [positions, organization]);
@@ -164,12 +183,22 @@ export function ApplicationWizard({
   const handleSelectOrganization = (org: "TIERS" | "NETWORK") => {
     setOrganization(org);
     if (org === "TIERS") {
-      const tierPos = positions.find((p) => p.slug === "tier-tester" || p.name.toLowerCase().includes("tier") || p.name.toLowerCase().includes("tester")) || positions[0];
+      const tierPos =
+        positions.find(
+          (p) =>
+            (p.slug === "tier-tester" || p.slug === "screensharer") &&
+            p.enabled !== false
+        ) || positions[0];
       const newPosId = tierPos ? tierPos.id : positionId;
       setPositionId(newPosId);
       triggerAutosave(answers, minecraftUsername, newPosId, modeId, org);
     } else {
-      const netPos = positions.find((p) => p.slug === "moderator" || p.slug === "trial-staff" || (!p.slug.includes("tester") && !p.name.toLowerCase().includes("tier tester"))) || positions[0];
+      const netPos =
+        positions.find(
+          (p) =>
+            (p.slug === "trial-staff" || p.slug === "moderator") &&
+            p.enabled !== false
+        ) || positions[0];
       const newPosId = netPos ? netPos.id : positionId;
       setPositionId(newPosId);
       setModeId(""); // Gamemode not applicable for general network staff
@@ -218,7 +247,7 @@ export function ApplicationWizard({
   };
 
   const handleModeChange = (selectedModeId: string) => {
-    // Single gamemode selection
+    // Toggle mode
     const newModeId = modeId === selectedModeId ? "" : selectedModeId;
     setModeId(newModeId);
     triggerAutosave(answers, minecraftUsername, positionId, newModeId, organization);
@@ -240,11 +269,6 @@ export function ApplicationWizard({
 
     if (!minecraftUsername.trim()) {
       setSubmitError("Please specify your Minecraft Java IGN in Step 1.");
-      return;
-    }
-
-    if (organization === "TIERS" && !modeId) {
-      setSubmitError("Please select exactly 1 Minecraft PvP Game Mode for Vortex Tiers testing in Step 2.");
       return;
     }
 
@@ -297,7 +321,7 @@ export function ApplicationWizard({
 
   const steps = [
     { num: 1, title: "Identity", subtitle: "Discord & Minecraft IGN", icon: User },
-    { num: 2, title: "Server & Role", subtitle: "Branch Selection", icon: Shield },
+    { num: 2, title: "Division & Role", subtitle: "Branch Selection", icon: Shield },
     { num: 3, title: "Assessment", subtitle: "Candidate Questionnaire", icon: HelpCircle },
     { num: 4, title: "Evidence", subtitle: "Media & Clips", icon: UploadCloud },
     { num: 5, title: "Review", subtitle: "Verification & Submit", icon: CheckCircle2 },
@@ -317,7 +341,7 @@ export function ApplicationWizard({
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1 font-mono">
-            Fill out all required fields. Draft is stored securely on your browser in real-time.
+            Candidate Recruitment Portal. Application progress is preserved locally in real-time.
           </p>
         </div>
 
@@ -342,7 +366,7 @@ export function ApplicationWizard({
         </div>
       </div>
 
-      {/* Desktop & Tablet Stepped Tactical Header */}
+      {/* Desktop Stepped Tactical Header */}
       <div className="hidden sm:grid grid-cols-5 gap-2 sm:gap-3">
         {steps.map((s) => {
           const isPassed = currentStep > s.num;
@@ -380,7 +404,7 @@ export function ApplicationWizard({
               <User className="h-5 w-5 text-primary" /> Step 1: Candidate Identity
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Verify your authenticated Discord credentials and enter your primary Minecraft Java username.
+              Verify your Discord account credentials and enter your primary Minecraft Java username.
             </CardDescription>
           </CardHeader>
 
@@ -428,7 +452,7 @@ export function ApplicationWizard({
                 className="w-full rounded-xl border border-border bg-[#0e1218] px-4 py-3 text-sm text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
               <p className="text-xs text-muted-foreground">
-                Enter your exact in-game name. We automatically verify your skin and check live Vortex tier rankings.
+                Enter your exact in-game name. Skin verification and live Vortex tier ratings are queried automatically.
               </p>
 
               {/* Live Tier Preview Component */}
@@ -441,30 +465,30 @@ export function ApplicationWizard({
                 disabled={!minecraftUsername.trim()}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
               >
-                Proceed to Server & Role <ChevronRight className="h-4 w-4" />
+                Proceed to Division & Role <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 2: SERVER & ROLE SELECTION */}
+      {/* STEP 2: DIVISION & ROLE SELECTION */}
       {currentStep === 2 && (
         <Card className="border-border/80 bg-[#121721] shadow-xl">
           <CardHeader className="border-b border-border/50 pb-4">
             <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" /> Step 2: Server Branch & Staff Position
+              <Shield className="h-5 w-5 text-primary" /> Step 2: Division & Position Selection
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Select which organization you are applying for: the official Tierlist or the main Minecraft Network.
+              Select which division you are applying for: the official Tierlist or the main Minecraft Network.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-7 pt-6">
-            {/* 1. Branch / Server Selection (2 Main Options) */}
+            {/* 1. Branch / Sector Selection */}
             <div className="space-y-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
-                1. Select Organization / Sector <span className="text-red-400">*</span>
+                1. Choose Division <span className="text-red-400">*</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Vortex Tiers Card */}
@@ -491,7 +515,7 @@ export function ApplicationWizard({
                     Vortex Tiers (Tierlist Staff)
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                    Evaluate player skill levels in 1v1 duels, test candidates, score competitive tiers (HT1-LT5), and referee tier matches in a specific PvP gamemode.
+                    Evaluate player skill levels in 1v1 duels, conduct screenshares for illicit clients/mods, score competitive tiers (HT1-LT5), or assist with queue moderation.
                   </p>
                 </button>
 
@@ -519,7 +543,7 @@ export function ApplicationWizard({
                     Vortex Network (Minecraft Server)
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                    Moderate the main Minecraft server and Discord, assist players, handle support tickets, run network events, and maintain server order.
+                    Moderate the main Minecraft server & Discord, assist players, handle support tickets, run network events, and maintain server order (Trial Staff).
                   </p>
                 </button>
               </div>
@@ -527,9 +551,15 @@ export function ApplicationWizard({
 
             {/* 2. Position Cards */}
             <div className="space-y-3">
-              <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
-                2. Desired Position <span className="text-red-400">*</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
+                  2. Desired Position <span className="text-red-400">*</span>
+                </label>
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  {organization === "NETWORK" ? "Open positions for Vortex Network" : "Open positions for Vortex Tiers"}
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {availablePositions.map((pos) => {
                   const isSelected = positionId === pos.id;
@@ -550,7 +580,7 @@ export function ApplicationWizard({
                         </span>
                         {pos.requiredEvidence && (
                           <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold text-amber-400 font-mono">
-                            Clips Required
+                            Evidence Required
                           </span>
                         )}
                       </div>
@@ -563,23 +593,48 @@ export function ApplicationWizard({
               </div>
             </div>
 
-            {/* 3. Game Mode Selector (Required for Vortex Tiers only) */}
+            {/* 3. Game Mode Selector (For Vortex Tiers) */}
             {organization === "TIERS" ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 font-mono">
-                    3. Target PvP Discipline / Gamemode <span className="text-red-400">* (Select 1)</span>
+                    3. Target PvP Discipline / Gamemode <span className="text-muted-foreground font-normal">(Optional: Pick 1 or All Modes)</span>
                   </label>
-                  {modeId && (
+                  {modeId ? (
                     <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> 1 Mode Selected
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Specific Mode Selected
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-mono text-amber-400 flex items-center gap-1">
+                      <Globe className="h-3.5 w-3.5" /> All Gamemodes (Global)
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Tier testers specialize in one primary discipline. Choose the game mode you will be testing candidates in:
+                  Choose a specific PvP discipline you specialize in, or leave unselected to apply as a multi-mode tester across all gamemodes:
                 </p>
+
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {/* All Gamemodes Card */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModeId("");
+                      triggerAutosave(answers, minecraftUsername, positionId, "", organization);
+                    }}
+                    className={`flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all cursor-pointer ${
+                      !modeId
+                        ? "border-amber-500 bg-amber-500/20 text-white font-bold shadow-md shadow-amber-500/10"
+                        : "border-border/70 bg-[#0e1218] text-muted-foreground hover:border-border hover:text-white"
+                    }`}
+                  >
+                    <div className="h-6 w-6 rounded bg-secondary/80 flex items-center justify-center p-1 flex-shrink-0 text-amber-400">
+                      <Globe className="h-4 w-4" />
+                    </div>
+                    <span className="text-xs font-mono font-bold truncate">All Gamemodes</span>
+                  </button>
+
+                  {/* 8 Specific Modes */}
                   {gameModes.map((mode) => {
                     const isSelected = modeId === mode.id;
                     return (
@@ -618,7 +673,7 @@ export function ApplicationWizard({
             ) : (
               <div className="rounded-xl border border-border/70 bg-[#0e1218] p-4 flex items-center gap-3 text-xs text-muted-foreground font-mono">
                 <Globe className="h-4 w-4 text-blue-400 flex-shrink-0" />
-                <span>Vortex Network Staff applies server-wide across all gamemodes and lobbies.</span>
+                <span>Vortex Network Staff applies server-wide across all network lobbies and game modes.</span>
               </div>
             )}
 
@@ -632,7 +687,7 @@ export function ApplicationWizard({
               </Button>
               <Button
                 onClick={() => setCurrentStep(3)}
-                disabled={!positionId || (organization === "TIERS" && !modeId)}
+                disabled={!positionId}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
               >
                 Proceed to Assessment <ChevronRight className="h-4 w-4" />
@@ -652,7 +707,7 @@ export function ApplicationWizard({
                   <HelpCircle className="h-5 w-5 text-primary" /> Step 3: Candidate Questionnaire
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Answer the following evaluation questions tailored to your selected position.
+                  Answer the evaluation questions tailored to your selected position and division.
                 </CardDescription>
               </div>
               <Badge variant="outline" className="font-mono text-xs">
@@ -671,7 +726,7 @@ export function ApplicationWizard({
                 </p>
               </div>
             ) : (
-              applicableQuestions.map((q, idx) => {
+              applicableQuestions.map((q) => {
                 const ans = answers[q.id] || { value: "", selectedOptions: [] };
                 return (
                   <DynamicQuestionField
@@ -712,7 +767,7 @@ export function ApplicationWizard({
               <UploadCloud className="h-5 w-5 text-primary" /> Step 4: Evidence, Media & Clips
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Attach screenshots of tier placements, duel recordings, or past moderation credentials to support your candidacy.
+              Attach screenshots of tier ratings, duel clips, or screenshare tooling credentials to support your candidacy.
             </CardDescription>
           </CardHeader>
 
@@ -724,8 +779,14 @@ export function ApplicationWizard({
               onFileRemove={handleFileRemove}
               maxFiles={6}
               maxFileSizeMb={150}
-              label="Attach Screenshots or Gameplay Video Clips"
-              description="Upload duel recordings (MP4/WebM/MOV) or tiering screenshots (PNG/JPEG). Files are securely stored."
+              label={
+                selectedPosition?.slug === "screensharer"
+                  ? "Attach Screensharing Tooling Proof / Past Logs (Screenshots or Video)"
+                  : selectedPosition?.slug === "tier-tester"
+                  ? "Attach 1v1 Duel Clips or Tier Score Proof (MP4, MOV, PNG)"
+                  : "Attach Moderation Credentials or Community Proof (Optional)"
+              }
+              description="Upload duel recordings (MP4/WebM/MOV) or verification screenshots (PNG/JPEG). Files are stored securely."
             />
 
             <div className="flex justify-between pt-4 border-t border-border/50">
@@ -789,8 +850,14 @@ export function ApplicationWizard({
                   <span className="rounded bg-secondary border border-border px-2.5 py-1 text-xs font-mono font-bold text-white">
                     {selectedPosition?.name || "Staff Role"}
                   </span>
-                  {organization === "TIERS" && selectedMode && (
-                    <ModeBadge slug={selectedMode.slug} name={selectedMode.name} />
+                  {organization === "TIERS" && (
+                    selectedMode ? (
+                      <ModeBadge slug={selectedMode.slug} name={selectedMode.name} />
+                    ) : (
+                      <span className="rounded bg-secondary/80 border border-border px-2 py-0.5 text-[11px] font-mono text-muted-foreground">
+                        All Modes
+                      </span>
+                    )
                   )}
                 </div>
               </div>
@@ -826,7 +893,7 @@ export function ApplicationWizard({
                     {uploadedFiles.map((file, i) => (
                       <div key={file.id || i} className="flex items-center gap-2 p-2 rounded-lg bg-[#121721] border border-border text-xs font-mono text-white">
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
-                        <span className="truncate">{file.filename || "Attached File"}</span>
+                        <span className="truncate">{file.filename || (file as any).fileName || "Attached File"}</span>
                       </div>
                     ))}
                   </div>

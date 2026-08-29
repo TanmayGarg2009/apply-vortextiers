@@ -48,12 +48,27 @@ class InMemoryStore {
     ];
     defaultModes.forEach((m) => this.modes.set(m.id, m));
 
-    // 2. Positions
+    // 2. Positions (Vortex Tiers & Vortex Network)
     const defaultPositions = [
+      // Vortex Tiers Roles
       { id: "pos-tester", slug: "tier-tester", name: "Tier Tester", description: "Evaluate applicant skill levels in 1v1 duels, accurately scoring tiers (HT1-HT4, LT1-LT5).", requiredEvidence: true, enabled: true, order: 1 },
-      { id: "pos-mod", slug: "moderator", name: "Moderator", description: "Enforce community standards, manage tiering queues, resolve disputes, and maintain Discord server integrity.", requiredEvidence: false, enabled: true, order: 2 },
-      { id: "pos-trial", slug: "trial-staff", name: "Trial Staff", description: "Entry-level staff position assisting with queue moderation, ticket management, and initial screening.", requiredEvidence: false, enabled: true, order: 3 },
-      { id: "pos-event", slug: "event-staff", name: "Event Staff", description: "Organize, stream, and referee official Vortex Tiers tournaments and community events.", requiredEvidence: true, enabled: true, order: 4 },
+      { id: "pos-screenshare", slug: "screensharer", name: "Screensharer", description: "Conduct thorough client & screen inspections for cheat clients, macros, autodeck, and illicit modifications.", requiredEvidence: true, enabled: true, order: 2 },
+      { id: "pos-tiers-helper", slug: "tiers-helper", name: "Tiers Helper", description: "Assist players in the tiering queue, coordinate testing matches, answer questions, and assist senior testers.", requiredEvidence: false, enabled: true, order: 3 },
+
+      // Vortex Network Roles (Default: Trial Staff open for application)
+      { id: "pos-trial", slug: "trial-staff", name: "Trial Staff", description: "Entry-level network staff position assisting with player reports, basic chat moderation, and ticket triage.", requiredEvidence: false, enabled: true, order: 10 },
+      { id: "pos-net-helper", slug: "network-helper", name: "Helper", description: "Helps members with questions and basic server problems. Passes escalated issues to Moderators.", requiredEvidence: false, enabled: false, order: 11 },
+      { id: "pos-mod", slug: "mod", name: "Mod", description: "Keeps the Discord and Minecraft community clean and friendly. Handles reports, rule breakers, and basic punishments.", requiredEvidence: false, enabled: false, order: 12 },
+      { id: "pos-srmod", slug: "sr-mod", name: "Sr Mod", description: "Supervises the Moderation team, manages complex reports, and assists Moderators during active incidents.", requiredEvidence: false, enabled: false, order: 13 },
+      { id: "pos-partner", slug: "partnership-manager", name: "Partnership Manager", description: "Handles partnerships with other gaming communities. Reviews partnership requests and manages outreach.", requiredEvidence: false, enabled: false, order: 14 },
+      { id: "pos-admin", slug: "admin", name: "Admin", description: "Handles reports, punishments, appeals, and important player issues. Guides the Moderation team.", requiredEvidence: false, enabled: false, order: 15 },
+      { id: "pos-dev", slug: "developer", name: "Developer", description: "Works on the technical side: Minecraft plugins, Discord bots, server architecture, and feature development.", requiredEvidence: true, enabled: false, order: 16 },
+      { id: "pos-sradmin", slug: "sr-admin", name: "Sr Admin", description: "Supervises Admin and Mod teams. Handles high-severity reports, major punishments, and administrative incidents.", requiredEvidence: false, enabled: false, order: 17 },
+      { id: "pos-manager", slug: "manager", name: "Manager", description: "Oversees the overall staff team, daily server operations, staff conduct, and team performance.", requiredEvidence: false, enabled: false, order: 18 },
+      { id: "pos-netmgr", slug: "network-manager", name: "Network Manager", description: "Directly oversees the Minecraft server ecosystem, infrastructure, server hosting, and development roadmaps.", requiredEvidence: false, enabled: false, order: 19 },
+      { id: "pos-coowner", slug: "co-owner", name: "Co Owner", description: "Executive server leadership working alongside the Owner to govern network operations.", requiredEvidence: false, enabled: false, order: 20 },
+      { id: "pos-owner", slug: "owner", name: "Owner", description: "Executive server ownership managing high-level decisions, finances, staff leadership, and server policies.", requiredEvidence: false, enabled: false, order: 21 },
+      { id: "pos-founder", slug: "founder", name: "Founder", description: "Ultimate executive authority over Vortex Tiers and Vortex Network.", requiredEvidence: false, enabled: false, order: 22 },
     ];
     defaultPositions.forEach((p) => this.positions.set(p.id, p));
 
@@ -596,6 +611,7 @@ export const dbService = {
     status?: ApplicationStatus;
     positionId?: string;
     modeId?: string;
+    division?: "NETWORK" | "TIERS" | "ALL" | string;
     page?: number;
     limit?: number;
   }): Promise<{ applications: ApplicationData[]; total: number; totalPages: number }> {
@@ -606,17 +622,43 @@ export const dbService = {
     if (await canConnectToDatabase()) {
       try {
         const where: any = {};
-        if (params.status) where.status = params.status;
+        if (params.status) {
+          where.status = params.status;
+        } else {
+          // Strictly exclude DRAFT applications from all admin queues & searches
+          where.status = { not: "DRAFT" };
+        }
+
         if (params.positionId) where.positionId = params.positionId;
         if (params.modeId) where.modeId = params.modeId;
-        if (params.query) {
+
+        // Division filtering
+        if (params.division === "NETWORK") {
           where.OR = [
+            { modeId: null },
+            { position: { slug: { in: ["trial-staff", "moderator", "mod", "sr-mod", "network-helper", "developer", "admin", "partnership-manager", "sr-admin", "manager", "network-manager", "co-owner", "owner", "founder"] } } }
+          ];
+        } else if (params.division === "TIERS") {
+          where.OR = [
+            { modeId: { not: null } },
+            { position: { slug: { in: ["tier-tester", "screensharer", "tiers-helper"] } } }
+          ];
+        }
+
+        if (params.query) {
+          const queryFilter = [
             { id: { contains: params.query, mode: "insensitive" } },
             { discordId: { contains: params.query, mode: "insensitive" } },
             { email: { contains: params.query, mode: "insensitive" } },
             { minecraftUsername: { contains: params.query, mode: "insensitive" } },
             { user: { discordUsername: { contains: params.query, mode: "insensitive" } } },
           ];
+          if (where.OR) {
+            where.AND = [{ OR: where.OR }, { OR: queryFilter }];
+            delete where.OR;
+          } else {
+            where.OR = queryFilter;
+          }
         }
 
         const [total, apps, positions, modes] = await Promise.all([
@@ -1260,18 +1302,17 @@ export const dbService = {
           ACCEPTED: 0,
           REJECTED: 0,
         };
-        let total = 0;
-
-        counts.forEach((c) => {
-          map[c.status] = c._count._all;
-          total += c._count._all;
-        });
+        const pending = map.SUBMITTED || 0;
+        const underReview = map.UNDER_REVIEW || 0;
+        const accepted = map.ACCEPTED || 0;
+        const rejected = map.REJECTED || 0;
+        const total = pending + underReview + accepted + rejected;
 
         const result = {
-          pending: map.SUBMITTED || 0,
-          underReview: map.UNDER_REVIEW || 0,
-          accepted: map.ACCEPTED || 0,
-          rejected: map.REJECTED || 0,
+          pending,
+          underReview,
+          accepted,
+          rejected,
           total,
         };
 
@@ -1282,12 +1323,12 @@ export const dbService = {
       }
     }
 
-    const all = Array.from(memoryStore.applications.values());
+    const all = Array.from(memoryStore.applications.values()).filter((a) => a.status !== "DRAFT");
     const pending = all.filter((a) => a.status === "SUBMITTED").length;
     const underReview = all.filter((a) => a.status === "UNDER_REVIEW").length;
     const accepted = all.filter((a) => a.status === "ACCEPTED").length;
     const rejected = all.filter((a) => a.status === "REJECTED").length;
-    const res = { pending, underReview, accepted, rejected, total: all.length };
+    const res = { pending, underReview, accepted, rejected, total: pending + underReview + accepted + rejected };
     setCached("admin:metrics", res, 15000);
     return res;
   },
