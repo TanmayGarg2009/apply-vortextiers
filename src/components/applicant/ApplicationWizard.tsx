@@ -247,10 +247,9 @@ export function ApplicationWizard({
   };
 
   const handleModeChange = (selectedModeId: string) => {
-    // Toggle mode
-    const newModeId = modeId === selectedModeId ? "" : selectedModeId;
-    setModeId(newModeId);
-    triggerAutosave(answers, minecraftUsername, positionId, newModeId, organization);
+    // Single gamemode selection (strictly 1 mode)
+    setModeId(selectedModeId);
+    triggerAutosave(answers, minecraftUsername, positionId, selectedModeId, organization);
   };
 
   const handleUploadSuccess = (file: UploadData) => {
@@ -269,6 +268,11 @@ export function ApplicationWizard({
 
     if (!minecraftUsername.trim()) {
       setSubmitError("Please specify your Minecraft Java IGN in Step 1.");
+      return;
+    }
+
+    if (organization === "TIERS" && !modeId) {
+      setSubmitError("Please select exactly 1 Minecraft PvP Game Mode for Vortex Tiers testing in Step 2.");
       return;
     }
 
@@ -593,48 +597,28 @@ export function ApplicationWizard({
               </div>
             </div>
 
-            {/* 3. Game Mode Selector (For Vortex Tiers) */}
+            {/* 3. Game Mode Selector (Strictly 1 Required for Vortex Tiers) */}
             {organization === "TIERS" ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 font-mono">
-                    3. Target PvP Discipline / Gamemode <span className="text-muted-foreground font-normal">(Optional: Pick 1 or All Modes)</span>
+                    3. Target PvP Discipline / Gamemode <span className="text-red-400">* (Select Exactly 1)</span>
                   </label>
                   {modeId ? (
                     <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Specific Mode Selected
+                      <CheckCircle2 className="h-3.5 w-3.5" /> 1 Mode Selected
                     </span>
                   ) : (
-                    <span className="text-[11px] font-mono text-amber-400 flex items-center gap-1">
-                      <Globe className="h-3.5 w-3.5" /> All Gamemodes (Global)
+                    <span className="text-[11px] font-mono text-amber-400/80 flex items-center gap-1">
+                      Selection Required
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Choose a specific PvP discipline you specialize in, or leave unselected to apply as a multi-mode tester across all gamemodes:
+                  Tier testers evaluate candidates in one dedicated PvP discipline. Select the gamemode you are applying to test:
                 </p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {/* All Gamemodes Card */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModeId("");
-                      triggerAutosave(answers, minecraftUsername, positionId, "", organization);
-                    }}
-                    className={`flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all cursor-pointer ${
-                      !modeId
-                        ? "border-amber-500 bg-amber-500/20 text-white font-bold shadow-md shadow-amber-500/10"
-                        : "border-border/70 bg-[#0e1218] text-muted-foreground hover:border-border hover:text-white"
-                    }`}
-                  >
-                    <div className="h-6 w-6 rounded bg-secondary/80 flex items-center justify-center p-1 flex-shrink-0 text-amber-400">
-                      <Globe className="h-4 w-4" />
-                    </div>
-                    <span className="text-xs font-mono font-bold truncate">All Gamemodes</span>
-                  </button>
-
-                  {/* 8 Specific Modes */}
                   {gameModes.map((mode) => {
                     const isSelected = modeId === mode.id;
                     return (
@@ -642,13 +626,13 @@ export function ApplicationWizard({
                         key={mode.id}
                         type="button"
                         onClick={() => handleModeChange(mode.id)}
-                        className={`flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all cursor-pointer ${
+                        className={`flex items-center gap-2.5 rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
                           isSelected
-                            ? "border-amber-500 bg-amber-500/20 text-white font-bold shadow-md shadow-amber-500/10"
+                            ? "border-amber-500 bg-amber-500/20 text-white font-bold shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/50"
                             : "border-border/70 bg-[#0e1218] text-muted-foreground hover:border-border hover:text-white"
                         }`}
                       >
-                        <div className="h-6 w-6 rounded bg-secondary/80 flex items-center justify-center p-1 flex-shrink-0">
+                        <div className="h-7 w-7 rounded-lg bg-secondary/80 flex items-center justify-center p-1 flex-shrink-0">
                           <img
                             src={
                               mode.slug === "crystal"
@@ -687,7 +671,7 @@ export function ApplicationWizard({
               </Button>
               <Button
                 onClick={() => setCurrentStep(3)}
-                disabled={!positionId}
+                disabled={!positionId || (organization === "TIERS" && !modeId)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
               >
                 Proceed to Assessment <ChevronRight className="h-4 w-4" />
