@@ -710,12 +710,13 @@ export function ApplicationWizard({
                 </p>
               </div>
             ) : (
-              applicableQuestions.map((q) => {
+              applicableQuestions.map((q, idx) => {
                 const ans = answers[q.id] || { value: "", selectedOptions: [] };
                 return (
                   <DynamicQuestionField
                     key={q.id}
                     question={q}
+                    questionNumber={idx + 1}
                     value={ans.value || ""}
                     selectedOptions={ans.selectedOptions || []}
                     onChange={(val, selected) => handleAnswerChange(q.id, val, selected)}
