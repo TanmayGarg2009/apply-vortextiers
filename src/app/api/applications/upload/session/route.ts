@@ -28,17 +28,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required upload parameters." }, { status: 400 });
     }
 
-    // 1. Verify application ownership
-    const { application, isOwner } = await checkApplicationAccess(applicationId, user);
-    if (!isOwner) {
-      return NextResponse.json({ error: "Only the applicant can upload evidence." }, { status: 403 });
-    }
+    // 1. Verify application ownership or draft status
+    const isDraft = applicationId === "draft" || applicationId.startsWith("draft") || applicationId.startsWith("local_");
+    if (!isDraft) {
+      const { application, isOwner } = await checkApplicationAccess(applicationId, user);
+      if (!isOwner) {
+        return NextResponse.json({ error: "Only the applicant can upload evidence." }, { status: 403 });
+      }
 
-    if (application.status !== "DRAFT" && application.status !== "NEEDS_CHANGES") {
-      return NextResponse.json(
-        { error: `Cannot upload files to an application with status ${application.status}.` },
-        { status: 400 }
-      );
+      if (application.status !== "DRAFT" && application.status !== "NEEDS_CHANGES") {
+        return NextResponse.json(
+          { error: `Cannot upload files to an application with status ${application.status}.` },
+          { status: 400 }
+        );
+      }
     }
 
     // 2. Validate MIME type

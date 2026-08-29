@@ -20,12 +20,22 @@ const DirectSubmitSchema = z.object({
   ).default([]),
   uploads: z.array(
     z.object({
-      fileName: z.string(),
-      fileSize: z.number(),
-      mimeType: z.string(),
-      fileUrl: z.string(),
+      id: z.string().optional(),
+      fileName: z.string().optional(),
+      filename: z.string().optional(),
+      fileSize: z.number().optional(),
+      sizeBytes: z.number().optional(),
+      mimeType: z.string().optional(),
+      fileUrl: z.string().optional(),
+      googleDriveViewLink: z.string().optional(),
       googleDriveFileId: z.string().optional(),
-    })
+    }).transform((u) => ({
+      fileName: u.fileName || u.filename || "evidence_file",
+      fileSize: u.fileSize || u.sizeBytes || 0,
+      mimeType: u.mimeType || "application/octet-stream",
+      fileUrl: u.fileUrl || u.googleDriveViewLink || "",
+      googleDriveFileId: u.googleDriveFileId || undefined,
+    }))
   ).optional().default([]),
   confirmAccuracy: z.boolean().refine((val) => val === true, {
     message: "You must confirm the accuracy of your application.",

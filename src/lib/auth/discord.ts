@@ -206,3 +206,56 @@ export async function handleDiscordCallback(
     role: userRole,
   };
 }
+
+/**
+ * Look up real Discord user profile by Snowflake ID using Discord REST API or existing records
+ */
+export async function fetchDiscordUser(discordId: string): Promise<{
+  id: string;
+  username: string;
+  globalName: string | null;
+  avatar: string | null;
+} | null> {
+  const cleanId = discordId.trim();
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+
+  // 1. Try Discord REST API if Bot Token is configured
+  if (botToken) {
+    try {
+      const res = await fetch(`https://discord.com/api/v10/users/${cleanId}`, {
+        headers: {
+          Authorization: `Bot ${botToken}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          id: data.id,
+          username: data.username,
+          globalName: data.global_name || null,
+          avatar: data.avatar || null,
+        };
+      }
+    } catch (e) {
+      console.warn("Discord Bot API lookup note:", e);
+    }
+  }
+
+  // 2. Check database for existing profile
+  try {
+    const existing = await prisma.user.findUnique({
+      where: { discordId: cleanId },
+      select: { discordId: true, discordUsername: true, discordGlobalName: true, discordAvatar: true },
+    });
+    if (existing) {
+      return {
+        id: existing.discordId,
+        username: existing.discordUsername,
+        globalName: existing.discordGlobalName,
+        avatar: existing.discordAvatar,
+      };
+    }
+  } catch {}
+
+  return null;
+}

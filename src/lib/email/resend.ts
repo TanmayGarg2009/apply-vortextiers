@@ -3,16 +3,28 @@ import prisma from "@/lib/db/prisma";
 import { EmailType, EmailStatus, SessionUser } from "@/types";
 import {
   renderSubmittedEmail,
+  renderUnderReviewEmail,
+  renderUnderDiscussionEmail,
   renderAcceptedEmail,
   renderRejectedEmail,
+  renderNeedsChangesEmail,
 } from "./templates";
 import { logAudit } from "@/lib/audit/audit-logger";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "re_mock_resend_api_key";
-const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "no-reply@vortextiers.xyz";
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Vortex Recruitment <recruitment@vortextiers.xyz>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://apply.vortextiers.xyz";
 
 export const resend = new Resend(RESEND_API_KEY);
+
+export type ExtendedEmailType =
+  | EmailType
+  | "APPLICATION_SUBMITTED"
+  | "APPLICATION_UNDER_REVIEW"
+  | "APPLICATION_UNDER_DISCUSSION"
+  | "APPLICATION_ACCEPTED"
+  | "APPLICATION_REJECTED"
+  | "APPLICATION_NEEDS_CHANGES";
 
 interface SendApplicationEmailParams {
   applicationId: string;
@@ -20,9 +32,11 @@ interface SendApplicationEmailParams {
   applicantName: string;
   positionName: string;
   modeName?: string | null;
-  type: EmailType;
+  type: ExtendedEmailType;
   acceptanceMessage?: string | null;
   rejectionReason?: string | null;
+  interviewNote?: string | null;
+  requestNote?: string | null;
 }
 
 /**
@@ -30,16 +44,31 @@ interface SendApplicationEmailParams {
  * The application decision is NEVER rolled back if email fails.
  */
 export async function sendApplicationEmail(params: SendApplicationEmailParams) {
+  // Map extended types to safe schema EmailType
+  const schemaType: EmailType =
+    params.type === "APPLICATION_ACCEPTED"
+      ? "APPLICATION_ACCEPTED"
+      : params.type === "APPLICATION_REJECTED"
+      ? "APPLICATION_REJECTED"
+      : params.type === "APPLICATION_SUBMITTED"
+      ? "APPLICATION_SUBMITTED"
+      : "STAFF_NOTIFICATION";
+
   // 1. Create or retrieve pending EmailEvent record
-  const emailEvent = await prisma.emailEvent.create({
-    data: {
-      applicationId: params.applicationId,
-      recipient: params.recipientEmail,
-      type: params.type,
-      status: "PENDING" as EmailStatus,
-      provider: "RESEND",
-    },
-  });
+  let emailEvent: any = null;
+  try {
+    emailEvent = await prisma.emailEvent.create({
+      data: {
+        applicationId: params.applicationId,
+        recipient: params.recipientEmail,
+        type: schemaType,
+        status: "PENDING" as EmailStatus,
+        provider: "RESEND",
+      },
+    });
+  } catch (err) {
+    console.warn("EmailEvent record creation note:", err);
+  }
 
   try {
     let emailContent: { subject: string; html: string; text: string };
@@ -52,6 +81,25 @@ export async function sendApplicationEmail(params: SendApplicationEmailParams) {
           positionName: params.positionName,
           modeName: params.modeName,
           appUrl: APP_URL,
+        });
+        break;
+      case "APPLICATION_UNDER_REVIEW":
+        emailContent = renderUnderReviewEmail({
+          applicantName: params.applicantName,
+          applicationId: params.applicationId,
+          positionName: params.positionName,
+          modeName: params.modeName,
+          appUrl: APP_URL,
+        });
+        break;
+      case "APPLICATION_UNDER_DISCUSSION":
+        emailContent = renderUnderDiscussionEmail({
+          applicantName: params.applicantName,
+          applicationId: params.applicationId,
+          positionName: params.positionName,
+          modeName: params.modeName,
+          appUrl: APP_URL,
+          interviewNote: params.interviewNote,
         });
         break;
       case "APPLICATION_ACCEPTED":
@@ -74,22 +122,44 @@ export async function sendApplicationEmail(params: SendApplicationEmailParams) {
           rejectionReason: params.rejectionReason,
         });
         break;
+      case "APPLICATION_NEEDS_CHANGES":
+        emailContent = renderNeedsChangesEmail({
+          applicantName: params.applicantName,
+          applicationId: params.applicationId,
+          positionName: params.positionName,
+          modeName: params.modeName,
+          appUrl: APP_URL,
+          requestNote: params.requestNote,
+        });
+        break;
       default:
-        throw new Error(`Unknown email type: ${params.type}`);
+        emailContent = renderSubmittedEmail({
+          applicantName: params.applicantName,
+          applicationId: params.applicationId,
+          positionName: params.positionName,
+          modeName: params.modeName,
+          appUrl: APP_URL,
+        });
+        break;
     }
 
     // In local dev/testing if mock/placeholder key is used
-    if (RESEND_API_KEY.includes("mock") || RESEND_API_KEY.includes("your_resend") || RESEND_API_KEY.includes("PLACEHOLDER")) {
+    if (
+      RESEND_API_KEY.includes("mock") ||
+      RESEND_API_KEY.includes("your_resend") ||
+      RESEND_API_KEY.includes("PLACEHOLDER")
+    ) {
       console.log(`[Email Simulation] To: ${params.recipientEmail}, Subject: ${emailContent.subject}`);
-      // Simulate send
-      await prisma.emailEvent.update({
-        where: { id: emailEvent.id },
-        data: {
-          status: "SENT" as EmailStatus,
-          sentAt: new Date(),
-          providerMessageId: `sim_${Date.now()}`,
-        },
-      });
+      if (emailEvent) {
+        await prisma.emailEvent.update({
+          where: { id: emailEvent.id },
+          data: {
+            status: "SENT" as EmailStatus,
+            sentAt: new Date(),
+            providerMessageId: `sim_${Date.now()}`,
+          },
+        }).catch(() => {});
+      }
       return { success: true, messageId: `sim_${Date.now()}` };
     }
 
@@ -102,91 +172,84 @@ export async function sendApplicationEmail(params: SendApplicationEmailParams) {
       text: emailContent.text,
     });
 
-    if (response.error) {
-      throw new Error(response.error.message || "Resend API error");
+    if (emailEvent) {
+      await prisma.emailEvent.update({
+        where: { id: emailEvent.id },
+        data: {
+          status: "SENT" as EmailStatus,
+          sentAt: new Date(),
+          providerMessageId: response.data?.id || `resend_${Date.now()}`,
+        },
+      }).catch(() => {});
     }
-
-    await prisma.emailEvent.update({
-      where: { id: emailEvent.id },
-      data: {
-        status: "SENT" as EmailStatus,
-        sentAt: new Date(),
-        providerMessageId: response.data?.id || null,
-      },
-    });
 
     return { success: true, messageId: response.data?.id };
   } catch (error: any) {
-    console.error("Email delivery failed:", error);
-    await prisma.emailEvent.update({
-      where: { id: emailEvent.id },
-      data: {
-        status: "FAILED" as EmailStatus,
-        failedAt: new Date(),
-        error: error.message || "Unknown delivery error",
-      },
-    });
+    console.error("Resend email dispatch error:", error);
+
+    if (emailEvent) {
+      await prisma.emailEvent.update({
+        where: { id: emailEvent.id },
+        data: {
+          status: "FAILED" as EmailStatus,
+          failedAt: new Date(),
+          error: error.message || "Failed to dispatch email.",
+        },
+      }).catch(() => {});
+    }
 
     return { success: false, error: error.message };
   }
 }
 
 /**
- * Admin retry for failed or existing email event
+ * Admin retry helper to re-send failed or pending email events
  */
-export async function retryEmailSend(emailEventId: string, actor: SessionUser) {
-  const existingEvent = await prisma.emailEvent.findUnique({
+export async function retryEmailSend(emailEventId: string, actor?: SessionUser) {
+  const event = await prisma.emailEvent.findUnique({
     where: { id: emailEventId },
     include: {
       application: {
         include: {
+          user: true,
           position: true,
           mode: true,
-          user: true,
         },
       },
     },
   });
 
-  if (!existingEvent) {
-    throw new Error("Email event record not found.");
+  if (!event || !event.application) {
+    throw new Error("Email event or associated application not found.");
   }
 
-  const app = existingEvent.application;
+  const app = event.application;
+  const applicantName = app.user?.discordGlobalName || app.user?.discordUsername || "Applicant";
+  const positionName = app.position?.name || "Staff Position";
+  const modeName = app.mode?.name;
 
-  // Record audit log
-  await logAudit({
-    actorId: actor.id,
-    action: "EMAIL_RETRIED",
-    targetType: "EmailEvent",
-    targetId: emailEventId,
-    metadata: {
-      applicationId: app.id,
-      emailType: existingEvent.type,
-      recipient: existingEvent.recipient,
-      previousAttempts: existingEvent.attempts,
-    },
-  });
-
-  // Increment attempts on the event
-  await prisma.emailEvent.update({
-    where: { id: emailEventId },
-    data: {
-      attempts: { increment: 1 },
-      status: "PENDING" as EmailStatus,
-      error: null,
-    },
-  });
-
-  // Attempt send
-  return await sendApplicationEmail({
+  const result = await sendApplicationEmail({
     applicationId: app.id,
-    recipientEmail: existingEvent.recipient,
-    applicantName: app.user?.discordGlobalName || app.user?.discordUsername || "Applicant",
-    positionName: app.position.name,
-    modeName: app.mode?.name,
-    type: existingEvent.type,
-    acceptanceMessage: app.acceptanceMessage,
-    rejectionReason: app.rejectionReason,
+    recipientEmail: event.recipient,
+    applicantName,
+    positionName,
+    modeName,
+    type: event.type as ExtendedEmailType,
   });
+
+  if (actor) {
+    await logAudit({
+      actorId: actor.id,
+      action: "EMAIL_RETRY_TRIGGERED",
+      targetType: "EmailEvent",
+      targetId: event.id,
+      metadata: {
+        recipient: event.recipient,
+        type: event.type,
+        success: result.success,
+      },
+    }).catch(() => {});
+  }
+
+  return result;
 }

@@ -35,6 +35,8 @@ import {
   Sparkles,
   Swords,
   Layers,
+  Globe,
+  Flame,
   FileCheck,
 } from "lucide-react";
 
@@ -55,7 +57,20 @@ export function ApplicationWizard({
 }: ApplicationWizardProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
-  const [positionId, setPositionId] = useState(initialApplication.positionId || positions[0]?.id || "");
+
+  // Sector / Server Selection: Vortex Network vs Vortex Tiers
+  const [organization, setOrganization] = useState<"TIERS" | "NETWORK">(() => {
+    if (
+      initialApplication.positionId?.includes("mod") ||
+      initialApplication.positionId?.includes("trial") ||
+      initialApplication.positionId?.includes("event")
+    ) {
+      return "NETWORK";
+    }
+    return "TIERS";
+  });
+
+  const [positionId, setPositionId] = useState(initialApplication.positionId || "");
   const [modeId, setModeId] = useState(initialApplication.modeId || "");
   const [minecraftUsername, setMinecraftUsername] = useState(initialApplication.minecraftUsername || "");
 
@@ -80,6 +95,7 @@ export function ApplicationWizard({
       if (savedDraftStr) {
         const draft = JSON.parse(savedDraftStr);
         if (draft.minecraftUsername) setMinecraftUsername(draft.minecraftUsername);
+        if (draft.organization) setOrganization(draft.organization);
         if (draft.positionId) setPositionId(draft.positionId);
         if (draft.modeId) setModeId(draft.modeId);
         if (draft.answers && Object.keys(draft.answers).length > 0) {
@@ -88,11 +104,17 @@ export function ApplicationWizard({
             ...prev,
           }));
         }
+      } else {
+        // Default position selection based on initial organization
+        const defaultTierPos = positions.find((p) => p.slug === "tier-tester" || p.id.includes("tester")) || positions[0];
+        if (defaultTierPos && !positionId) {
+          setPositionId(defaultTierPos.id);
+        }
       }
     } catch (e) {
       console.warn("Failed to restore local draft:", e);
     }
-  }, [user.id]);
+  }, [user.id, positions]);
 
   const [uploadedFiles, setUploadedFiles] = useState<UploadData[]>(initialApplication.uploads || []);
   const [confirmAccuracy, setConfirmAccuracy] = useState(false);
@@ -101,27 +123,18 @@ export function ApplicationWizard({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Debounced Autosave Timer
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, []);
-
   const triggerAutosave = (
     currentAnswers = answers,
     currentUsername = minecraftUsername,
     currentPosId = positionId,
-    currentModeId = modeId
+    currentModeId = modeId,
+    currentOrg = organization
   ) => {
-    // 1. Immediately persist to localStorage (100% local)
     try {
       localStorage.setItem(
         `vortex_local_draft_${user.id}`,
         JSON.stringify({
+          organization: currentOrg,
           positionId: currentPosId,
           modeId: currentModeId,
           minecraftUsername: currentUsername,
@@ -136,14 +149,59 @@ export function ApplicationWizard({
     }
   };
 
+  // Filter positions by selected organization
+  const availablePositions = useMemo(() => {
+    if (organization === "TIERS") {
+      const tierRoles = positions.filter((p) => p.slug === "tier-tester" || p.name.toLowerCase().includes("tier") || p.name.toLowerCase().includes("tester"));
+      return tierRoles.length > 0 ? tierRoles : positions;
+    } else {
+      const networkRoles = positions.filter((p) => p.slug !== "tier-tester" && !p.name.toLowerCase().includes("tier tester"));
+      return networkRoles.length > 0 ? networkRoles : positions;
+    }
+  }, [positions, organization]);
+
+  // When switching organization, auto-select a valid position for that sector
+  const handleSelectOrganization = (org: "TIERS" | "NETWORK") => {
+    setOrganization(org);
+    if (org === "TIERS") {
+      const tierPos = positions.find((p) => p.slug === "tier-tester" || p.name.toLowerCase().includes("tier") || p.name.toLowerCase().includes("tester")) || positions[0];
+      const newPosId = tierPos ? tierPos.id : positionId;
+      setPositionId(newPosId);
+      triggerAutosave(answers, minecraftUsername, newPosId, modeId, org);
+    } else {
+      const netPos = positions.find((p) => p.slug === "moderator" || p.slug === "trial-staff" || (!p.slug.includes("tester") && !p.name.toLowerCase().includes("tier tester"))) || positions[0];
+      const newPosId = netPos ? netPos.id : positionId;
+      setPositionId(newPosId);
+      setModeId(""); // Gamemode not applicable for general network staff
+      triggerAutosave(answers, minecraftUsername, newPosId, "", org);
+    }
+  };
+
   // Filter applicable questions for currently selected position & game mode
   const applicableQuestions = useMemo(() => {
     return questions.filter((q) => {
+      // Exclude redundant IGN question (collected in Step 1)
+      if (
+        q.type === "MINECRAFT_USERNAME" ||
+        q.title.toLowerCase().includes("in-game name") ||
+        q.title.toLowerCase().includes("minecraft ign")
+      ) {
+        return false;
+      }
+      // Exclude media upload questions from Step 3 (handled in Step 4 dedicated uploader)
+      if (q.type === "IMAGE" || q.type === "VIDEO") {
+        return false;
+      }
       if (q.positionId && q.positionId !== positionId) return false;
       if (q.modeId && q.modeId !== modeId) return false;
       return true;
     });
   }, [questions, positionId, modeId]);
+
+  const handleUsernameChange = (val: string) => {
+    setMinecraftUsername(val);
+    triggerAutosave(answers, val, positionId, modeId, organization);
+  };
 
   const handleAnswerChange = (questionId: string, value: string, selectedOptions?: string[]) => {
     const updated = {
@@ -151,7 +209,19 @@ export function ApplicationWizard({
       [questionId]: { value, selectedOptions },
     };
     setAnswers(updated);
-    triggerAutosave(updated);
+    triggerAutosave(updated, minecraftUsername, positionId, modeId, organization);
+  };
+
+  const handlePositionChange = (posId: string) => {
+    setPositionId(posId);
+    triggerAutosave(answers, minecraftUsername, posId, modeId, organization);
+  };
+
+  const handleModeChange = (selectedModeId: string) => {
+    // Single gamemode selection
+    const newModeId = modeId === selectedModeId ? "" : selectedModeId;
+    setModeId(newModeId);
+    triggerAutosave(answers, minecraftUsername, positionId, newModeId, organization);
   };
 
   const handleUploadSuccess = (file: UploadData) => {
@@ -173,6 +243,11 @@ export function ApplicationWizard({
       return;
     }
 
+    if (organization === "TIERS" && !modeId) {
+      setSubmitError("Please select exactly 1 Minecraft PvP Game Mode for Vortex Tiers testing in Step 2.");
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError(null);
 
@@ -190,7 +265,7 @@ export function ApplicationWizard({
         credentials: "include",
         body: JSON.stringify({
           positionId,
-          modeId: modeId || null,
+          modeId: organization === "TIERS" ? modeId || null : null,
           minecraftUsername: minecraftUsername.trim(),
           answers: payloadAnswers,
           uploads: uploadedFiles,
@@ -222,10 +297,10 @@ export function ApplicationWizard({
 
   const steps = [
     { num: 1, title: "Identity", subtitle: "Discord & Minecraft IGN", icon: User },
-    { num: 2, title: "Role & Mode", subtitle: "Position Selection", icon: Shield },
-    { num: 3, title: "Assessment", subtitle: "Written Questions", icon: HelpCircle },
+    { num: 2, title: "Server & Role", subtitle: "Branch Selection", icon: Shield },
+    { num: 3, title: "Assessment", subtitle: "Candidate Questionnaire", icon: HelpCircle },
     { num: 4, title: "Evidence", subtitle: "Media & Clips", icon: UploadCloud },
-    { num: 5, title: "Review", subtitle: "Final Verification", icon: CheckCircle2 },
+    { num: 5, title: "Review", subtitle: "Verification & Submit", icon: CheckCircle2 },
   ];
 
   return (
@@ -238,44 +313,29 @@ export function ApplicationWizard({
               Staff Application
             </h1>
             <span className="font-mono text-xs font-bold text-primary px-2.5 py-0.5 rounded border border-primary/40 bg-primary/10">
-              {initialApplication.id}
+              {organization === "TIERS" ? "Vortex Tiers" : "Vortex Network"}
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1 font-mono">
-            Vortex Tiers recruitment protocol. Autosaving changes live.
+            Fill out all required fields. Draft is stored securely on your browser in real-time.
           </p>
         </div>
 
         <AutosavePill status={autosaveStatus} lastSavedAt={lastSavedAt} />
       </div>
 
-      {/* Mobile Step Indicator */}
-      <div className="sm:hidden rounded-xl border border-border/80 bg-[#121721] p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-6 w-6 rounded-full bg-primary/20 text-primary border border-primary/40 font-mono text-xs font-bold flex items-center justify-center">
-              {currentStep}
-            </span>
-            <span className="text-xs font-bold font-mono text-white">
-              {steps[currentStep - 1]?.title}
-            </span>
-          </div>
-          <span className="text-[11px] font-mono text-muted-foreground">
-            Step {currentStep} of {steps.length}
-          </span>
+      {/* Mobile Step Bar */}
+      <div className="sm:hidden space-y-2">
+        <div className="flex items-center justify-between text-xs font-mono text-muted-foreground">
+          <span>Step {currentStep} of 5: <strong className="text-white">{steps[currentStep - 1].title}</strong></span>
+          <span>{Math.round((currentStep / 5) * 100)}%</span>
         </div>
-        {/* Progress Bar */}
-        <div className="w-full bg-secondary/80 h-1.5 rounded-full overflow-hidden flex gap-1">
+        <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden flex">
           {steps.map((s) => (
             <div
               key={s.num}
-              onClick={() => setCurrentStep(s.num)}
-              className={`flex-1 h-full rounded-full transition-all cursor-pointer ${
-                s.num === currentStep
-                  ? "bg-primary"
-                  : s.num < currentStep
-                  ? "bg-emerald-500"
-                  : "bg-border/60"
+              className={`h-full flex-1 transition-all ${
+                currentStep >= s.num ? "bg-primary" : "bg-transparent"
               }`}
             />
           ))}
@@ -317,10 +377,10 @@ export function ApplicationWizard({
         <Card className="border-border/80 bg-[#121721] shadow-xl">
           <CardHeader className="border-b border-border/50 pb-4">
             <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
-              <User className="h-5 w-5 text-primary" /> Step 1: Applicant Profile
+              <User className="h-5 w-5 text-primary" /> Step 1: Candidate Identity
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Verify your authenticated Discord passport and link your Minecraft Java Edition username.
+              Verify your authenticated Discord credentials and enter your primary Minecraft Java username.
             </CardDescription>
           </CardHeader>
 
@@ -363,10 +423,7 @@ export function ApplicationWizard({
               <input
                 type="text"
                 value={minecraftUsername}
-                onChange={(e) => {
-                  setMinecraftUsername(e.target.value);
-                  triggerAutosave();
-                }}
+                onChange={(e) => handleUsernameChange(e.target.value)}
                 placeholder="e.g. ClownPierce, IntelEdits..."
                 className="w-full rounded-xl border border-border bg-[#0e1218] px-4 py-3 text-sm text-white placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
@@ -384,42 +441,103 @@ export function ApplicationWizard({
                 disabled={!minecraftUsername.trim()}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
               >
-                Proceed to Role Selection <ChevronRight className="h-4 w-4" />
+                Proceed to Server & Role <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 2: POSITION & GAME MODE */}
+      {/* STEP 2: SERVER & ROLE SELECTION */}
       {currentStep === 2 && (
         <Card className="border-border/80 bg-[#121721] shadow-xl">
           <CardHeader className="border-b border-border/50 pb-4">
             <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" /> Step 2: Role & Game Mode Selection
+              <Shield className="h-5 w-5 text-primary" /> Step 2: Server Branch & Staff Position
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Choose the staff role you are applying for and your primary Minecraft PvP discipline.
+              Select which organization you are applying for: the official Tierlist or the main Minecraft Network.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-6 pt-6">
-            {/* Position Cards */}
+          <CardContent className="space-y-7 pt-6">
+            {/* 1. Branch / Server Selection (2 Main Options) */}
             <div className="space-y-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
-                Desired Staff Role <span className="text-red-400">*</span>
+                1. Select Organization / Sector <span className="text-red-400">*</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Vortex Tiers Card */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectOrganization("TIERS")}
+                  className={`text-left rounded-2xl border p-5 transition-all cursor-pointer relative overflow-hidden ${
+                    organization === "TIERS"
+                      ? "border-amber-500 bg-amber-500/10 shadow-lg shadow-amber-500/10"
+                      : "border-border/70 bg-[#0e1218] hover:border-border hover:bg-[#161c28]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                      <Swords className="h-5 w-5" />
+                    </div>
+                    {organization === "TIERS" && (
+                      <span className="rounded-full bg-amber-500 text-black px-2.5 py-0.5 text-[10px] font-black font-mono">
+                        SELECTED
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-base text-white font-mono">
+                    Vortex Tiers (Tierlist Staff)
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                    Evaluate player skill levels in 1v1 duels, test candidates, score competitive tiers (HT1-LT5), and referee tier matches in a specific PvP gamemode.
+                  </p>
+                </button>
+
+                {/* Vortex Network Card */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectOrganization("NETWORK")}
+                  className={`text-left rounded-2xl border p-5 transition-all cursor-pointer relative overflow-hidden ${
+                    organization === "NETWORK"
+                      ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/10"
+                      : "border-border/70 bg-[#0e1218] hover:border-border hover:bg-[#161c28]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                      <Globe className="h-5 w-5" />
+                    </div>
+                    {organization === "NETWORK" && (
+                      <span className="rounded-full bg-blue-500 text-white px-2.5 py-0.5 text-[10px] font-black font-mono">
+                        SELECTED
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-base text-white font-mono">
+                    Vortex Network (Minecraft Server)
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                    Moderate the main Minecraft server and Discord, assist players, handle support tickets, run network events, and maintain server order.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Position Cards */}
+            <div className="space-y-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
+                2. Desired Position <span className="text-red-400">*</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {positions.map((pos) => {
+                {availablePositions.map((pos) => {
                   const isSelected = positionId === pos.id;
                   return (
                     <button
                       key={pos.id}
                       type="button"
-                      onClick={() => {
-                        setPositionId(pos.id);
-                        triggerAutosave();
-                      }}
+                      onClick={() => handlePositionChange(pos.id)}
                       className={`text-left rounded-xl border p-4 transition-all cursor-pointer ${
                         isSelected
                           ? "border-primary bg-primary/10 shadow-md shadow-primary/10"
@@ -445,50 +563,64 @@ export function ApplicationWizard({
               </div>
             </div>
 
-            {/* Game Mode Selector with Official SVG Icons */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold uppercase tracking-wider text-white font-mono">
-                Primary PvP Discipline / Gamemode <span className="text-muted-foreground font-normal">(Optional for general mod)</span>
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {gameModes.map((mode) => {
-                  const isSelected = modeId === mode.id;
-                  return (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      onClick={() => {
-                        setModeId(isSelected ? "" : mode.id);
-                        triggerAutosave();
-                      }}
-                      className={`flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all cursor-pointer ${
-                        isSelected
-                          ? "border-primary bg-primary/15 text-white font-bold"
-                          : "border-border/70 bg-[#0e1218] text-muted-foreground hover:border-border hover:text-white"
-                      }`}
-                    >
-                      <div className="h-6 w-6 rounded bg-secondary/80 flex items-center justify-center p-1 flex-shrink-0">
-                        <img
-                          src={
-                            mode.slug === "crystal"
-                              ? "/icons/vanilla.svg"
-                              : mode.slug === "neth-pot"
-                              ? "/icons/nethop.svg"
-                              : `/icons/${mode.slug}.svg`
-                          }
-                          alt={mode.name}
-                          className="h-full w-full object-contain"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src = "/icons/sword.svg";
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs font-mono font-bold truncate">{mode.name}</span>
-                    </button>
-                  );
-                })}
+            {/* 3. Game Mode Selector (Required for Vortex Tiers only) */}
+            {organization === "TIERS" ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 font-mono">
+                    3. Target PvP Discipline / Gamemode <span className="text-red-400">* (Select 1)</span>
+                  </label>
+                  {modeId && (
+                    <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> 1 Mode Selected
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tier testers specialize in one primary discipline. Choose the game mode you will be testing candidates in:
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {gameModes.map((mode) => {
+                    const isSelected = modeId === mode.id;
+                    return (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => handleModeChange(mode.id)}
+                        className={`flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-amber-500 bg-amber-500/20 text-white font-bold shadow-md shadow-amber-500/10"
+                            : "border-border/70 bg-[#0e1218] text-muted-foreground hover:border-border hover:text-white"
+                        }`}
+                      >
+                        <div className="h-6 w-6 rounded bg-secondary/80 flex items-center justify-center p-1 flex-shrink-0">
+                          <img
+                            src={
+                              mode.slug === "crystal"
+                                ? "/icons/vanilla.svg"
+                                : mode.slug === "neth-pot"
+                                ? "/icons/nethop.svg"
+                                : `/icons/${mode.slug}.svg`
+                            }
+                            alt={mode.name}
+                            className="h-full w-full object-contain"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = "/icons/sword.svg";
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs font-mono font-bold truncate">{mode.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-xl border border-border/70 bg-[#0e1218] p-4 flex items-center gap-3 text-xs text-muted-foreground font-mono">
+                <Globe className="h-4 w-4 text-blue-400 flex-shrink-0" />
+                <span>Vortex Network Staff applies server-wide across all gamemodes and lobbies.</span>
+              </div>
+            )}
 
             <div className="flex justify-between pt-4 border-t border-border/50">
               <Button
@@ -500,10 +632,10 @@ export function ApplicationWizard({
               </Button>
               <Button
                 onClick={() => setCurrentStep(3)}
-                disabled={!positionId}
+                disabled={!positionId || (organization === "TIERS" && !modeId)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold font-mono gap-1.5"
               >
-                Proceed to Questions <ChevronRight className="h-4 w-4" />
+                Proceed to Assessment <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </CardContent>
@@ -517,52 +649,40 @@ export function ApplicationWizard({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
-                  <HelpCircle className="h-5 w-5 text-primary" /> Step 3: Candidate Assessment
+                  <HelpCircle className="h-5 w-5 text-primary" /> Step 3: Candidate Questionnaire
                 </CardTitle>
-                <CardDescription className="text-xs text-muted-foreground mt-1">
-                  Answer the evaluation questions specific to {selectedPosition?.name || "your role"}.
+                <CardDescription className="text-xs text-muted-foreground">
+                  Answer the following evaluation questions tailored to your selected position.
                 </CardDescription>
               </div>
-              <span className="font-mono text-xs text-primary font-bold">
+              <Badge variant="outline" className="font-mono text-xs">
                 {applicableQuestions.length} Questions
-              </span>
+              </Badge>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-6 pt-6">
             {applicableQuestions.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground font-mono text-sm">
-                No custom questions configured for this position. You may proceed directly to Evidence & Submission.
+              <div className="text-center py-10 space-y-2">
+                <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto" />
+                <p className="text-sm font-bold text-white font-mono">No Written Questions Required</p>
+                <p className="text-xs text-muted-foreground">
+                  You can proceed directly to evidence & clip submission.
+                </p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {applicableQuestions.map((q, idx) => (
-                  <div key={q.id} className="rounded-xl border border-border/70 bg-[#0e1218] p-4 space-y-3">
-                    <div className="flex items-start gap-2.5">
-                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-primary/15 text-[11px] font-bold text-primary font-mono">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1">
-                        <span className="text-xs font-bold text-white block">
-                          {q.title} {q.required && <span className="text-red-400">*</span>}
-                        </span>
-                        {q.description && (
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            {q.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <DynamicQuestionField
-                      question={q}
-                      value={answers[q.id]?.value || ""}
-                      selectedOptions={answers[q.id]?.selectedOptions || []}
-                      onChange={(val, opts) => handleAnswerChange(q.id, val, opts)}
-                    />
-                  </div>
-                ))}
-              </div>
+              applicableQuestions.map((q, idx) => {
+                const ans = answers[q.id] || { value: "", selectedOptions: [] };
+                return (
+                  <DynamicQuestionField
+                    key={q.id}
+                    question={q}
+                    value={ans.value || ""}
+                    selectedOptions={ans.selectedOptions || []}
+                    onChange={(val, selected) => handleAnswerChange(q.id, val, selected)}
+                  />
+                );
+              })
             )}
 
             <div className="flex justify-between pt-4 border-t border-border/50">
@@ -584,24 +704,28 @@ export function ApplicationWizard({
         </Card>
       )}
 
-      {/* STEP 4: EVIDENCE & MEDIA */}
+      {/* STEP 4: EVIDENCE & MEDIA UPLOAD */}
       {currentStep === 4 && (
         <Card className="border-border/80 bg-[#121721] shadow-xl">
           <CardHeader className="border-b border-border/50 pb-4">
             <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
-              <UploadCloud className="h-5 w-5 text-primary" /> Step 4: Evidence & PvP Clips
+              <UploadCloud className="h-5 w-5 text-primary" /> Step 4: Evidence, Media & Clips
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Attach unedited PvP duel recordings, testing footage, or past staff credentials.
+              Attach screenshots of tier placements, duel recordings, or past moderation credentials to support your candidacy.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6 pt-6">
             <EvidenceUploader
-              applicationId={initialApplication.id}
+              applicationId="draft"
               uploadedFiles={uploadedFiles}
               onUploadSuccess={handleUploadSuccess}
               onFileRemove={handleFileRemove}
+              maxFiles={6}
+              maxFileSizeMb={150}
+              label="Attach Screenshots or Gameplay Video Clips"
+              description="Upload duel recordings (MP4/WebM/MOV) or tiering screenshots (PNG/JPEG). Files are securely stored."
             />
 
             <div className="flex justify-between pt-4 border-t border-border/50">
@@ -623,98 +747,105 @@ export function ApplicationWizard({
         </Card>
       )}
 
-      {/* STEP 5: FINAL REVIEW & SUBMIT */}
+      {/* STEP 5: FINAL VERIFICATION & SUBMISSION */}
       {currentStep === 5 && (
         <Card className="border-border/80 bg-[#121721] shadow-xl">
           <CardHeader className="border-b border-border/50 pb-4">
             <CardTitle className="text-lg font-black text-white font-mono flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-primary" /> Step 5: Review & Final Submission
+              <CheckCircle2 className="h-5 w-5 text-emerald-400" /> Step 5: Final Review & Submission
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Inspect your application snapshot. Once submitted, answers become immutable for review.
+              Review your application details. Once submitted, your dossier is locked for staff committee review.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6 pt-6">
-            {/* Applicant Summary Dossier */}
-            <div className="rounded-xl border border-border/80 bg-[#0e1218] p-5 space-y-4">
+            {submitError && (
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-xs text-red-400 font-mono flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span>{submitError}</span>
+              </div>
+            )}
+
+            {/* Application Summary Box */}
+            <div className="rounded-2xl border border-border/80 bg-[#0e1218] p-5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/50 pb-4">
                 <div className="flex items-center gap-3">
-                  <MinecraftAvatar username={minecraftUsername} type="bust" size={48} />
+                  <MinecraftAvatar username={minecraftUsername} size={40} />
                   <div>
-                    <span className="font-mono font-black text-base text-white block">
+                    <h3 className="font-bold text-white font-mono text-sm">
                       {minecraftUsername}
-                    </span>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      Discord: {user.discordGlobalName || user.discordUsername} ({user.discordId})
-                    </span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      Discord: {user.discordUsername} ({user.discordId})
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="rounded bg-primary/15 border border-primary/30 px-2.5 py-1 text-xs font-bold text-primary font-mono">
-                    {selectedPosition?.name || "No Position"}
+                  <span className="rounded bg-primary/10 border border-primary/40 px-2.5 py-1 text-xs font-mono font-bold text-primary">
+                    {organization === "TIERS" ? "Vortex Tiers" : "Vortex Network"}
                   </span>
-                  {selectedMode && (
+                  <span className="rounded bg-secondary border border-border px-2.5 py-1 text-xs font-mono font-bold text-white">
+                    {selectedPosition?.name || "Staff Role"}
+                  </span>
+                  {organization === "TIERS" && selectedMode && (
                     <ModeBadge slug={selectedMode.slug} name={selectedMode.name} />
                   )}
                 </div>
               </div>
 
-              {/* Answers Inspection */}
+              {/* Answers Breakdown */}
               <div className="space-y-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-                  Recorded Responses ({applicableQuestions.length})
-                </span>
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                  {applicableQuestions.map((q) => {
-                    const ans = answers[q.id];
-                    return (
-                      <div key={q.id} className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-1">
-                        <span className="text-xs font-bold text-white block font-mono">
-                          {q.title}
-                        </span>
-                        <p className="text-xs text-muted-foreground whitespace-pre-wrap font-sans">
-                          {ans?.value || (ans?.selectedOptions && ans.selectedOptions.join(", ")) || "No answer provided"}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                  Submitted Answers ({applicableQuestions.length})
+                </h4>
+                {applicableQuestions.map((q, idx) => {
+                  const ans = answers[q.id];
+                  const displayVal = ans?.value || (ans?.selectedOptions && ans.selectedOptions.join(", ")) || "—";
+                  return (
+                    <div key={q.id} className="rounded-lg border border-border/60 bg-[#121721] p-3 space-y-1">
+                      <span className="text-xs font-bold text-muted-foreground font-mono block">
+                        {idx + 1}. {q.title}
+                      </span>
+                      <p className="text-xs text-white whitespace-pre-wrap font-sans">
+                        {displayVal}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Uploads Inspection */}
-              <div className="space-y-1.5 pt-2 border-t border-border/40">
-                <span className="text-xs font-bold text-muted-foreground font-mono">
-                  Attached Clips & Evidence: {uploadedFiles.length} file(s)
-                </span>
-              </div>
+              {/* Uploads Breakdown */}
+              {uploadedFiles.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                    Attached Evidence ({uploadedFiles.length})
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {uploadedFiles.map((file, i) => (
+                      <div key={file.id || i} className="flex items-center gap-2 p-2 rounded-lg bg-[#121721] border border-border text-xs font-mono text-white">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                        <span className="truncate">{file.filename || "Attached File"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Confirmation Checkbox */}
-            <div className="flex items-start space-x-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+            <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
               <Checkbox
-                id="confirm"
+                id="accuracy-check"
                 checked={confirmAccuracy}
-                onCheckedChange={(c) => setConfirmAccuracy(!!c)}
-                className="mt-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground border-primary"
+                onCheckedChange={(c) => setConfirmAccuracy(c === true)}
+                className="mt-0.5"
               />
-              <div className="space-y-1">
-                <label htmlFor="confirm" className="text-xs font-bold text-white cursor-pointer font-mono">
-                  I confirm all information provided is accurate and authentic.
-                </label>
-                <p className="text-[11px] text-muted-foreground">
-                  I understand that falsifying evidence or tier history will result in immediate blacklisting from Vortex Tiers recruitment.
-                </p>
-              </div>
+              <label htmlFor="accuracy-check" className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none">
+                I hereby confirm that all information provided in this application is accurate and truthful. I understand that submitting false credentials, forged clips, or deceptive answers will result in immediate disqualification and a permanent ban from staff eligibility.
+              </label>
             </div>
-
-            {submitError && (
-              <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-400 font-mono flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                <span>{submitError}</span>
-              </div>
-            )}
 
             <div className="flex justify-between pt-4 border-t border-border/50">
               <Button
@@ -728,11 +859,11 @@ export function ApplicationWizard({
               <Button
                 onClick={handleSubmit}
                 disabled={submitting || !confirmAccuracy}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-black font-mono text-sm px-6 gap-2 shadow-lg shadow-primary/20"
+                className="bg-emerald-500 hover:bg-emerald-400 text-black font-mono font-black text-sm px-6 h-11 gap-2 shadow-lg shadow-emerald-500/20"
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Submitting...
+                    <Loader2 className="h-4 w-4 animate-spin" /> Submitting Application...
                   </>
                 ) : (
                   <>

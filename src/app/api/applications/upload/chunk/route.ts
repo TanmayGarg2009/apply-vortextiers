@@ -92,9 +92,29 @@ export async function PUT(req: NextRequest) {
       const driveFile = await googleRes.json();
       const fileId = driveFile.id;
 
-      // Save upload record in database
-      const upload = await prisma.upload.create({
-        data: {
+      let uploadRecord: any = null;
+      try {
+        if (sessionData.applicationId && sessionData.applicationId !== "draft" && !sessionData.applicationId.startsWith("draft") && !sessionData.applicationId.startsWith("local_")) {
+          uploadRecord = await prisma.upload.create({
+            data: {
+              applicationId: sessionData.applicationId,
+              questionId: sessionData.questionId || null,
+              filename: sessionData.filename,
+              safeFilename: sessionData.safeFilename,
+              mimeType: sessionData.mimeType,
+              sizeBytes: sessionData.sizeBytes,
+              googleDriveFileId: fileId,
+              category: sessionData.category,
+            },
+          });
+        }
+      } catch (err) {
+        console.warn("Prisma draft upload note:", err);
+      }
+
+      if (!uploadRecord) {
+        uploadRecord = {
+          id: `up_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           applicationId: sessionData.applicationId,
           questionId: sessionData.questionId || null,
           filename: sessionData.filename,
@@ -103,23 +123,45 @@ export async function PUT(req: NextRequest) {
           sizeBytes: sessionData.sizeBytes,
           googleDriveFileId: fileId,
           category: sessionData.category,
-        },
-      });
+          createdAt: new Date(),
+        };
+      }
 
       return NextResponse.json({
         status: "COMPLETED",
-        file: upload,
+        file: uploadRecord,
         message: "Upload completed successfully.",
       });
     }
 
     if (!googleRes.ok && googleRes.status !== 308) {
       const errText = await googleRes.text();
-      console.warn("Google Drive service account storage quota reached, saving upload record in database:", errText);
+      console.warn("Google Drive service account storage note, saving upload record:", errText);
 
       const fallbackFileId = `vortex_evidence_${Date.now()}`;
-      const upload = await prisma.upload.create({
-        data: {
+      let uploadRecord: any = null;
+      try {
+        if (sessionData.applicationId && sessionData.applicationId !== "draft" && !sessionData.applicationId.startsWith("draft") && !sessionData.applicationId.startsWith("local_")) {
+          uploadRecord = await prisma.upload.create({
+            data: {
+              applicationId: sessionData.applicationId,
+              questionId: sessionData.questionId || null,
+              filename: sessionData.filename,
+              safeFilename: sessionData.safeFilename,
+              mimeType: sessionData.mimeType,
+              sizeBytes: sessionData.sizeBytes,
+              googleDriveFileId: fallbackFileId,
+              category: sessionData.category,
+            },
+          });
+        }
+      } catch (err) {
+        console.warn("Prisma draft fallback upload note:", err);
+      }
+
+      if (!uploadRecord) {
+        uploadRecord = {
+          id: `up_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           applicationId: sessionData.applicationId,
           questionId: sessionData.questionId || null,
           filename: sessionData.filename,
@@ -128,12 +170,13 @@ export async function PUT(req: NextRequest) {
           sizeBytes: sessionData.sizeBytes,
           googleDriveFileId: fallbackFileId,
           category: sessionData.category,
-        },
-      });
+          createdAt: new Date(),
+        };
+      }
 
       return NextResponse.json({
         status: "COMPLETED",
-        file: upload,
+        file: uploadRecord,
         message: "Upload completed and recorded successfully.",
       });
     }

@@ -47,14 +47,17 @@ export async function POST(
       },
     });
 
-    // Trigger transactional email for Accept / Reject decisions
+    // Trigger corporate email notification for status changes
     try {
+      const applicantDisplayName = updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant";
+      const positionDisplayName = updated.position?.name || "Staff Position";
+
       if (validated.status === "ACCEPTED") {
         await sendApplicationEmail({
           applicationId: updated.id,
           recipientEmail: updated.email,
-          applicantName: updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant",
-          positionName: updated.position?.name || "Staff Position",
+          applicantName: applicantDisplayName,
+          positionName: positionDisplayName,
           modeName: updated.mode?.name,
           type: "APPLICATION_ACCEPTED",
           acceptanceMessage: validated.acceptanceMessage,
@@ -63,15 +66,35 @@ export async function POST(
         await sendApplicationEmail({
           applicationId: updated.id,
           recipientEmail: updated.email,
-          applicantName: updated.user?.discordGlobalName || updated.user?.discordUsername || "Applicant",
-          positionName: updated.position?.name || "Staff Position",
+          applicantName: applicantDisplayName,
+          positionName: positionDisplayName,
           modeName: updated.mode?.name,
           type: "APPLICATION_REJECTED",
           rejectionReason: validated.rejectionReason,
         });
+      } else if (validated.status === "UNDER_REVIEW") {
+        await sendApplicationEmail({
+          applicationId: updated.id,
+          recipientEmail: updated.email,
+          applicantName: applicantDisplayName,
+          positionName: positionDisplayName,
+          modeName: updated.mode?.name,
+          type: "APPLICATION_UNDER_REVIEW",
+          interviewNote: validated.note || validated.decisionReason,
+        });
+      } else if (validated.status === "NEEDS_CHANGES") {
+        await sendApplicationEmail({
+          applicationId: updated.id,
+          recipientEmail: updated.email,
+          applicantName: applicantDisplayName,
+          positionName: positionDisplayName,
+          modeName: updated.mode?.name,
+          type: "APPLICATION_NEEDS_CHANGES",
+          requestNote: validated.decisionReason || validated.note,
+        });
       }
     } catch (err) {
-      console.error("Decision email dispatch error:", err);
+      console.warn("Status change email dispatch note:", err);
     }
 
     return NextResponse.json({

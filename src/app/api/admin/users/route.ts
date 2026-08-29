@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/rbac";
 import prisma from "@/lib/db/prisma";
 import { logAudit } from "@/lib/audit/audit-logger";
 import { Role } from "@/types";
+import { fetchDiscordUser } from "@/lib/auth/discord";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +16,14 @@ export async function GET(req: NextRequest) {
     const role = url.searchParams.get("role");
 
     const where: any = {};
-    if (role && (role === "ADMIN" || role === "REVIEWER" || role === "APPLICANT")) {
+
+    // Default to STAFF (Admins and Reviewers) unless explicitly requesting ALL or APPLICANT
+    if (!role || role === "STAFF") {
+      where.role = { in: [Role.ADMIN, Role.REVIEWER] };
+    } else if (role === "ADMIN" || role === "REVIEWER" || role === "APPLICANT") {
       where.role = role as Role;
+    } else if (role === "ALL") {
+      // No role filter
     }
 
     if (search) {
@@ -64,7 +71,18 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanDiscordId = discordId.trim();
-    const cleanUsername = (discordUsername || `User_${cleanDiscordId.slice(-4)}`).trim();
+
+    // Look up real Discord user profile
+    const fetchedProfile = await fetchDiscordUser(cleanDiscordId);
+
+    const cleanUsername = (
+      discordUsername ||
+      fetchedProfile?.username ||
+      `User_${cleanDiscordId.slice(-4)}`
+    ).trim();
+
+    const cleanGlobalName = fetchedProfile?.globalName || null;
+    const cleanAvatar = fetchedProfile?.avatar || null;
     const cleanRole: Role = role === "ADMIN" ? Role.ADMIN : role === "REVIEWER" ? Role.REVIEWER : Role.APPLICANT;
     const cleanEmail = (email || `${cleanDiscordId}@vortextiers.discord`).trim();
 
@@ -73,10 +91,14 @@ export async function POST(req: NextRequest) {
       update: {
         role: cleanRole,
         discordUsername: cleanUsername,
+        discordGlobalName: cleanGlobalName,
+        discordAvatar: cleanAvatar,
       },
       create: {
         discordId: cleanDiscordId,
         discordUsername: cleanUsername,
+        discordGlobalName: cleanGlobalName,
+        discordAvatar: cleanAvatar,
         role: cleanRole,
         email: cleanEmail,
       },

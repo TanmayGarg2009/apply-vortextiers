@@ -15,6 +15,9 @@ import {
   Check,
   Crown,
   Key,
+  UserCheck,
+  UserX,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,9 +27,12 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [selectedRoleFilter, setSelectedRoleFilter] = useState("ALL");
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<"STAFF" | "ALL" | "APPLICANT">("STAFF");
   const [showAddModal, setShowAddModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Revoke state
+  const [revokingUserId, setRevokingUserId] = useState<string | null>(null);
 
   // Form State for Adding Staff
   const [newDiscordId, setNewDiscordId] = useState("");
@@ -36,12 +42,21 @@ export default function AdminUsersPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
+  // Live Discord Lookup State
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookedUpProfile, setLookedUpProfile] = useState<{
+    id: string;
+    username: string;
+    globalName?: string | null;
+    avatar?: string | null;
+  } | null>(null);
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.append("search", search);
-      if (selectedRoleFilter !== "ALL") params.append("role", selectedRoleFilter);
+      if (selectedRoleFilter) params.append("role", selectedRoleFilter);
 
       const res = await fetch(`/api/admin/users?${params.toString()}`);
       const data = await res.json();
@@ -58,7 +73,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchUsers();
-    }, 300);
+    }, 250);
     return () => clearTimeout(timer);
   }, [search, selectedRoleFilter]);
 
@@ -71,9 +86,7 @@ export default function AdminUsersPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setUsers((prev) =>
-          prev.map((u) => (u.id === userId ? { ...u, role: targetRole } : u))
-        );
+        fetchUsers();
       } else {
         alert(data.error || "Failed to update role");
       }
@@ -82,10 +95,61 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleRevokeStaff = async (userId: string) => {
+    if (!confirm("Are you sure you want to revoke this user's staff permissions and demote them to applicant?")) {
+      return;
+    }
+    setRevokingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchUsers();
+      } else {
+        alert(data.error || "Failed to revoke staff access");
+      }
+    } catch (err) {
+      alert("Network error revoking access");
+    } finally {
+      setRevokingUserId(null);
+    }
+  };
+
+  // Live lookup Discord user
+  const handleDiscordIdLookup = async (idToLookup: string) => {
+    if (!idToLookup.trim() || idToLookup.trim().length < 15) return;
+    setLookingUp(true);
+    try {
+      const res = await fetch(`/api/admin/users?search=${encodeURIComponent(idToLookup.trim())}&role=ALL`);
+      const data = await res.json();
+      if (data.success && data.users && data.users.length > 0) {
+        const found = data.users.find((u: any) => u.discordId === idToLookup.trim());
+        if (found) {
+          setLookedUpProfile({
+            id: found.discordId,
+            username: found.discordUsername,
+            globalName: found.discordGlobalName,
+            avatar: found.discordAvatar,
+          });
+          setNewUsername(found.discordUsername);
+          setLookingUp(false);
+          return;
+        }
+      }
+      setLookedUpProfile(null);
+    } catch (err) {
+      console.warn("Lookup note:", err);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDiscordId.trim()) {
-      setFormError("Discord User ID (Snowflake) is required.");
+      setFormError("Discord Snowflake User ID is required.");
       return;
     }
 
@@ -109,9 +173,10 @@ export default function AdminUsersPage() {
         throw new Error(data.error || "Failed to add user");
       }
 
-      setFormSuccess(`Successfully granted ${newRole} access!`);
+      setFormSuccess(`Successfully granted ${newRole} permissions to ${data.user.discordUsername}!`);
       setNewDiscordId("");
       setNewUsername("");
+      setLookedUpProfile(null);
       fetchUsers();
       setTimeout(() => {
         setShowAddModal(false);
@@ -137,14 +202,14 @@ export default function AdminUsersPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-black tracking-tight text-white font-mono uppercase">
-              Staff & Permissions
+              Staff & Roster Management
             </h1>
             <Badge className="bg-primary/20 text-primary border-primary/40 font-mono">
-              {users.length} Users
+              {users.length} {selectedRoleFilter === "STAFF" ? "Staff Members" : "Users"}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground font-mono">
-            Manage administrative privileges, application reviewers, and staff access rosters.
+            Manage administrative access, application reviewers, and staff rosters.
           </p>
         </div>
 
@@ -164,7 +229,7 @@ export default function AdminUsersPage() {
             <span>Administrator (ADMIN)</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Full platform access. Manage staff roles, configure recruitment questions, edit supported game modes, modify platform settings, and review applications.
+            Full platform control. Manage staff roles, configure recruitment questions, edit supported game modes, modify settings, and review applications.
           </p>
         </div>
 
@@ -174,79 +239,103 @@ export default function AdminUsersPage() {
             <span>Staff Reviewer (REVIEWER)</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Application evaluation suite access. Inspect applicant dossiers, stream attached duel clips, write private review notes, accept/reject, and request changes.
+            Application evaluation suite access. Inspect applicant dossiers, review duel clips, write private notes, accept/reject, and request changes.
           </p>
         </div>
 
-        <div className="rounded-xl border border-border/80 bg-[#121721] p-4 space-y-1.5">
+        <div className="rounded-xl border border-border/80 bg-[#10141c] p-4 space-y-1.5">
           <div className="flex items-center gap-2 text-xs font-mono font-bold text-muted-foreground">
-            <Users className="h-4 w-4 text-primary" />
-            <span>Standard Contender (APPLICANT)</span>
+            <Users className="h-4 w-4" />
+            <span>Applicant (APPLICANT)</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Standard candidate account. Can create, edit, save drafts, submit staff applications, and view personal application review status.
+            General candidate access. Can fill and submit staff applications, upload duel evidence, and track review status.
           </p>
         </div>
       </div>
 
-      {/* Search & Filter Toolbar */}
+      {/* Filters and Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by username or Discord ID..."
+            type="text"
+            placeholder="Search by Discord name, ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-[#121721] border-border text-xs font-mono text-white placeholder:text-muted-foreground h-9"
+            className="pl-9 bg-[#0e1218] border-border/80 text-xs font-mono"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          {["ALL", "ADMIN", "REVIEWER", "APPLICANT"].map((r) => (
-            <button
-              key={r}
-              onClick={() => setSelectedRoleFilter(r)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-mono font-bold transition-colors cursor-pointer ${
-                selectedRoleFilter === r
-                  ? "bg-primary text-black"
-                  : "bg-secondary/60 text-muted-foreground hover:text-white"
-              }`}
-            >
-              {r}
-            </button>
-          ))}
+        {/* Role View Toggle Tabs */}
+        <div className="flex items-center rounded-xl bg-[#0e1218] p-1 border border-border/80 w-full sm:w-auto">
+          <button
+            onClick={() => setSelectedRoleFilter("STAFF")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-colors ${
+              selectedRoleFilter === "STAFF"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-white"
+            }`}
+          >
+            <Shield className="h-3.5 w-3.5" /> Staff Roster Only
+          </button>
+          <button
+            onClick={() => setSelectedRoleFilter("ALL")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-colors ${
+              selectedRoleFilter === "ALL"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-white"
+            }`}
+          >
+            <Users className="h-3.5 w-3.5" /> All Users
+          </button>
+          <button
+            onClick={() => setSelectedRoleFilter("APPLICANT")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-colors ${
+              selectedRoleFilter === "APPLICANT"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-white"
+            }`}
+          >
+            Applicants
+          </button>
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="rounded-xl border border-border/80 bg-[#121721] overflow-hidden shadow-xl">
+      {/* Users & Staff Roster Table */}
+      <div className="rounded-2xl border border-border/80 bg-[#121721] overflow-hidden shadow-xl">
         {loading ? (
-          <div className="flex items-center justify-center p-12 text-muted-foreground font-mono text-xs gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" /> Loading staff roster...
+          <div className="flex items-center justify-center py-20 gap-3 text-muted-foreground font-mono text-xs">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span>Loading user directory...</span>
           </div>
         ) : users.length === 0 ? (
-          <div className="text-center p-12 space-y-2">
-            <p className="text-sm font-mono text-muted-foreground">No users found matching query.</p>
+          <div className="text-center py-20 space-y-3">
+            <Users className="h-10 w-10 text-muted-foreground mx-auto" />
+            <h3 className="font-bold text-white font-mono text-sm">No Users Found</h3>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              No accounts match the selected filter criteria.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-border/60 bg-[#161c28] font-mono text-muted-foreground uppercase text-[10px] tracking-wider">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="border-b border-border/60 bg-[#0e1218] text-muted-foreground">
                 <tr>
-                  <th className="p-3.5">User</th>
-                  <th className="p-3.5">Discord Snowflake</th>
-                  <th className="p-3.5">Role</th>
-                  <th className="p-3.5 text-center">Applications</th>
-                  <th className="p-3.5 text-center">Reviews Done</th>
-                  <th className="p-3.5">Joined</th>
-                  <th className="p-3.5 text-right">Quick Change</th>
+                  <th className="p-3.5 font-bold uppercase tracking-wider">Discord Member</th>
+                  <th className="p-3.5 font-bold uppercase tracking-wider">Snowflake ID</th>
+                  <th className="p-3.5 font-bold uppercase tracking-wider">Role</th>
+                  <th className="p-3.5 font-bold uppercase tracking-wider text-center">Applications</th>
+                  <th className="p-3.5 font-bold uppercase tracking-wider text-center">Reviews Done</th>
+                  <th className="p-3.5 font-bold uppercase tracking-wider">Registered</th>
+                  <th className="p-3.5 font-bold uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/40 font-mono">
+              <tbody className="divide-y divide-border/40">
                 {users.map((u) => {
                   const avatarUrl = u.discordAvatar
-                    ? `https://cdn.discordapp.com/avatars/${u.discordId}/${u.discordAvatar}.png?size=64`
-                    : `https://cdn.discordapp.com/embed/avatars/${parseInt(u.discordId.slice(-1) || "0") % 5}.png`;
+                    ? `https://cdn.discordapp.com/avatars/${u.discordId}/${u.discordAvatar}.png`
+                    : `https://cdn.discordapp.com/embed/avatars/${parseInt(u.discordId || "0", 10) % 5}.png`;
 
                   return (
                     <tr key={u.id} className="hover:bg-secondary/20 transition-colors">
@@ -257,6 +346,9 @@ export default function AdminUsersPage() {
                             src={avatarUrl}
                             alt={u.discordUsername}
                             className="h-8 w-8 rounded-full border border-border/80 object-cover flex-shrink-0"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = "/vx-logo.jpg";
+                            }}
                           />
                           <div>
                             <div className="font-bold text-white flex items-center gap-1.5">
@@ -321,17 +413,32 @@ export default function AdminUsersPage() {
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
 
-                      {/* Quick Role Change Selector */}
+                      {/* Quick Role Change & Remove Button */}
                       <td className="p-3.5 text-right">
-                        <select
-                          value={u.role}
-                          onChange={(e) => handleUpdateRole(u.id, e.target.value)}
-                          className="rounded-lg border border-border/80 bg-[#0a0d13] px-2.5 py-1 text-xs font-mono text-white focus:border-primary focus:outline-none cursor-pointer"
-                        >
-                          <option value="APPLICANT">Applicant</option>
-                          <option value="REVIEWER">Reviewer (Staff)</option>
-                          <option value="ADMIN">Admin (Full Control)</option>
-                        </select>
+                        <div className="flex items-center justify-end gap-2">
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                            className="rounded-lg border border-border/80 bg-[#0a0d13] px-2.5 py-1 text-xs font-mono text-white focus:border-primary focus:outline-none cursor-pointer"
+                          >
+                            <option value="APPLICANT">Applicant</option>
+                            <option value="REVIEWER">Reviewer</option>
+                            <option value="ADMIN">Admin</option>
+                          </select>
+
+                          {u.role !== "APPLICANT" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRevokeStaff(u.id)}
+                              disabled={revokingUserId === u.id}
+                              className="h-7 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs"
+                              title="Revoke Staff Permissions"
+                            >
+                              <UserX className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -348,12 +455,11 @@ export default function AdminUsersPage() {
           <div className="w-full max-w-md rounded-2xl border border-border/80 bg-[#0e1218] p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2 text-sm font-bold font-mono text-white uppercase">
-                <Key className="h-4 w-4 text-primary" />
-                <span>Grant Staff Role & Permissions</span>
+                <UserPlus className="h-4 w-4 text-primary" /> Grant Staff Permissions
               </div>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-muted-foreground hover:text-white font-mono text-xs cursor-pointer"
+                className="text-muted-foreground hover:text-white text-xs font-mono"
               >
                 ✕
               </button>
@@ -361,104 +467,119 @@ export default function AdminUsersPage() {
 
             <form onSubmit={handleAddStaff} className="space-y-4">
               {formError && (
-                <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-xs text-red-400 font-mono flex items-center gap-2">
+                <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-400 font-mono flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   <span>{formError}</span>
                 </div>
               )}
 
               {formSuccess && (
-                <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-400 font-mono flex items-center gap-2">
+                <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-400 font-mono flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                   <span>{formSuccess}</span>
                 </div>
               )}
 
+              {/* Discord ID Input + Live Lookup */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-mono font-bold text-white uppercase">
-                  Discord User ID (Snowflake) *
+                  Discord Snowflake ID <span className="text-red-400">*</span>
                 </label>
-                <Input
-                  required
-                  placeholder="e.g. 1422296301768540240"
-                  value={newDiscordId}
-                  onChange={(e) => setNewDiscordId(e.target.value)}
-                  className="bg-[#121721] border-border text-xs font-mono text-white placeholder:text-muted-foreground"
-                />
-                <p className="text-[10px] text-muted-foreground font-mono">
-                  Right click the user in Discord → Copy User ID (Developer Mode must be on).
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    required
+                    placeholder="e.g. 1422296301768540240"
+                    value={newDiscordId}
+                    onChange={(e) => {
+                      setNewDiscordId(e.target.value);
+                      handleDiscordIdLookup(e.target.value);
+                    }}
+                    className="bg-[#080b0f] border-border/80 text-xs font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDiscordIdLookup(newDiscordId)}
+                    disabled={lookingUp || !newDiscordId.trim()}
+                    className="font-mono text-xs text-muted-foreground hover:text-white"
+                  >
+                    {lookingUp ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Lookup"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Right-click any user in Discord and select <strong>Copy User ID</strong>.
                 </p>
               </div>
 
+              {/* Looked up profile preview */}
+              {lookedUpProfile && (
+                <div className="rounded-xl border border-border/80 bg-[#121721] p-3 flex items-center gap-3">
+                  <img
+                    src={
+                      lookedUpProfile.avatar
+                        ? `https://cdn.discordapp.com/avatars/${lookedUpProfile.id}/${lookedUpProfile.avatar}.png`
+                        : "/vx-logo.jpg"
+                    }
+                    alt={lookedUpProfile.username}
+                    className="h-9 w-9 rounded-full object-cover border border-border"
+                  />
+                  <div>
+                    <span className="font-bold text-white text-xs font-mono block">
+                      {lookedUpProfile.username}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {lookedUpProfile.globalName || "Discord Member"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Optional Custom Display Name */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-mono font-bold text-white uppercase">
-                  Discord Username <span className="text-muted-foreground font-normal">(Optional)</span>
+                  Staff Display Name <span className="text-muted-foreground font-normal">(Optional)</span>
                 </label>
                 <Input
-                  placeholder="e.g. tanmay_pvp"
+                  type="text"
+                  placeholder="e.g. Alex (Staff Lead)"
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
-                  className="bg-[#121721] border-border text-xs font-mono text-white placeholder:text-muted-foreground"
+                  className="bg-[#080b0f] border-border/80 text-xs font-mono"
                 />
               </div>
 
+              {/* Role Selector */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-mono font-bold text-white uppercase">
-                  Role Assignment *
+                  Role Assignment <span className="text-red-400">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewRole("REVIEWER")}
-                    className={`rounded-xl border p-3 text-left transition-all cursor-pointer font-mono text-xs ${
-                      newRole === "REVIEWER"
-                        ? "border-purple-500 bg-purple-500/15 text-purple-300 font-bold"
-                        : "border-border/70 bg-[#121721] text-muted-foreground hover:border-border hover:text-white"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Shield className="h-3.5 w-3.5" />
-                      <span>Reviewer</span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground font-sans">
-                      Grade and review applications.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewRole("ADMIN")}
-                    className={`rounded-xl border p-3 text-left transition-all cursor-pointer font-mono text-xs ${
-                      newRole === "ADMIN"
-                        ? "border-red-500 bg-red-500/15 text-red-300 font-bold"
-                        : "border-border/70 bg-[#121721] text-muted-foreground hover:border-border hover:text-white"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Crown className="h-3.5 w-3.5" />
-                      <span>Admin</span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground font-sans">
-                      Full control & configuration.
-                    </p>
-                  </button>
-                </div>
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  className="w-full rounded-xl border border-border/80 bg-[#080b0f] p-2.5 text-xs font-mono text-white focus:border-primary focus:outline-none"
+                >
+                  <option value="REVIEWER">Reviewer (Staff Application Evaluator)</option>
+                  <option value="ADMIN">Administrator (Full Control)</option>
+                </select>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-border/60">
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-border/60">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAddModal(false)}
-                  className="font-mono text-xs border-border"
+                  disabled={submitting}
+                  className="font-mono text-xs"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={submitting}
+                  disabled={submitting || !newDiscordId.trim()}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold text-xs gap-1.5"
                 >
                   {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
