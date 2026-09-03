@@ -40,7 +40,7 @@ const DISCORD_SERVERS = [
   { label: "NethOP", icon: "/icons/nethop.svg", url: "https://discord.gg/8GPWhKuch8", color: "from-red-500/20 to-orange-500/20" },
   { label: "SMP", icon: "/icons/smp.svg", url: "https://discord.gg/yxqznAWqXh", color: "from-emerald-500/20 to-teal-500/20" },
   { label: "Sword", icon: "/icons/sword.svg", url: "https://discord.gg/RuBkcj5NxZ", color: "from-cyan-500/20 to-blue-500/20" },
-  { label: "Axe", icon: "/icons/axe.svg", url: "https://discord.gg/r458Sx54kF", color: "from-rose-500/20 to-red-500/20" },
+  { label: "Axe", icon: "/icons/axe.svg", url: "https://discord.gg/qbNnCm4brY", color: "from-rose-500/20 to-red-500/20" },
   { label: "Mace", icon: "/icons/mace.svg", url: "https://discord.gg/NjWpNsK96K", color: "from-violet-500/20 to-purple-500/20" },
 ];
 
